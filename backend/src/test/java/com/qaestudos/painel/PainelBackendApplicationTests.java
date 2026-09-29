@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 /**
@@ -18,6 +19,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(TestcontainersConfiguration.class)
 class PainelBackendApplicationTests {
 
     @Autowired
@@ -31,6 +33,19 @@ class PainelBackendApplicationTests {
                 .extractingPath("$[*].id")
                 .asArray()
                 .containsExactly("cypress", "playwright", "k6");
+    }
+
+    @Test
+    void historicoDeProjetoSemExecucoesVemVazio() {
+        assertThat(mvc.get().uri("/api/execucoes?projeto=k6"))
+                .hasStatusOk()
+                .bodyJson()
+                .isLenientlyEqualTo("[]");
+    }
+
+    @Test
+    void historicoDeProjetoInexistenteDevolve404() {
+        assertThat(mvc.get().uri("/api/execucoes?projeto=selenium")).hasStatus(404);
     }
 
     @Test

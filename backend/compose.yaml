@@ -1,0 +1,33 @@
+# Banco de dados de DESENVOLVIMENTO do painel.
+#
+# O Spring Boot (spring-boot-docker-compose) lê este arquivo ao rodar
+# "mvnw spring-boot:run": sobe o container se não estiver de pé e já
+# configura a conexão (URL, usuário, senha) automaticamente.
+#
+# Também dá para controlar na mão:
+#   docker compose up -d     # sobe o banco
+#   docker compose down      # para (os dados ficam no volume)
+#   docker compose down -v   # para e APAGA os dados (banco zerado)
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: qapanel-postgres
+    environment:
+      POSTGRES_DB: qapanel
+      POSTGRES_USER: qapanel
+      # Senha de desenvolvimento local. Em produção viria de um cofre de
+      # segredos, nunca escrita num arquivo versionado.
+      POSTGRES_PASSWORD: qapanel
+    ports:
+      - "5432:5432"
+    volumes:
+      - qapanel-dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qapanel -d qapanel"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  # Volume nomeado: os dados sobrevivem quando o container é recriado.
+  qapanel-dados:

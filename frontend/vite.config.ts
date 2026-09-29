@@ -10,9 +10,10 @@ export default defineConfig({
     // Para o navegador são "origens" diferentes, e ele bloquearia as
     // chamadas (regra de segurança chamada CORS). Com o proxy, o front
     // chama "/api/..." na própria origem e o Vite repassa ao backend.
+    // Endereço da API: padrão 8080; outro via variável, ex.: API_URL=http://localhost:8081
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/actuator': 'http://localhost:8080',
+      '/api': process.env.API_URL ?? 'http://localhost:8080',
+      '/actuator': process.env.API_URL ?? 'http://localhost:8080',
     },
   },
   test: {

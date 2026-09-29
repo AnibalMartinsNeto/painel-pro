@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { Layout } from './components/Layout'
+import { ExecucaoDetalhePage } from './features/execucoes/ExecucaoDetalhePage'
 import { ExecucoesPage } from './features/execucoes/ExecucoesPage'
 import { AzurePage, RelatoriosPage, TriagemPage } from './features/outras/OutrasPaginas'
 import { ProjetoAtualProvider } from './features/projetos/ProjetoAtual'
@@ -17,6 +18,7 @@ export function App() {
         <Route element={<Layout />}>
           <Route index element={<VisaoGeralPage />} />
           <Route path="execucoes" element={<ExecucoesPage />} />
+          <Route path="execucoes/:id" element={<ExecucaoDetalhePage />} />
           <Route path="triagem" element={<TriagemPage />} />
           <Route path="azure" element={<AzurePage />} />
           <Route path="relatorios" element={<RelatoriosPage />} />

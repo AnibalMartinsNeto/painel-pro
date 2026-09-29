@@ -5,6 +5,32 @@ spring:
   application:
     name: painel-backend
 
+  # Conexão com o PostgreSQL do compose.yaml. Ao rodar pelo Maven, o
+  # spring-boot-docker-compose sobe o container e preenche isto sozinho;
+  # os valores abaixo valem quando o banco é iniciado por fora.
+  datasource:
+    url: jdbc:postgresql://localhost:5432/qapanel
+    username: qapanel
+    password: qapanel
+
+  docker:
+    compose:
+      file: compose.yaml
+      # Sobe o banco se precisar, mas não derruba ao parar a aplicação.
+      lifecycle-management: start-only
+
+  jpa:
+    # Quem cria/altera tabelas é o Flyway. O Hibernate só VALIDA que as
+    # entidades Java batem com as tabelas — e recusa subir se não baterem.
+    hibernate:
+      ddl-auto: validate
+    # Desliga o "open session in view": o acesso ao banco fica restrito à
+    # camada de serviço, e não vaza para a renderização da resposta.
+    open-in-view: false
+
+  flyway:
+    locations: classpath:db/migration
+
 server:
   port: 8080
 

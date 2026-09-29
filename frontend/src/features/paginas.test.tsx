@@ -23,13 +23,40 @@ const cypress = {
 }
 const k6 = { ...projetos[1], baseUrl: null, navegadores: [], specs: ['tests/smoke.js'], scripts: [] }
 
+const execucao = {
+  id: 7, projetoId: 'cypress', script: 'test:diagnostics', navegador: 'electron', status: 'FALHOU',
+  iniciadaEm: '2026-09-28T23:50:58Z', finalizadaEm: '2026-09-28T23:51:35Z',
+  total: 2, aprovados: 1, reprovados: 1, pulados: 0, duracaoMs: 37036, importada: true,
+}
+const resumo = {
+  mes: '2026-09', execucoes: 3, testes: 70, aprovados: 58, reprovados: 12, aprovacao: 82.9,
+  falhasPorModulo: [{ modulo: 'Matriz de usuários', falhas: 12, percentual: 100 }],
+  ultimaExecucao: execucao,
+  ultimaPorScript: { 'test:diagnostics': execucao },
+}
+const vazio = { ...resumo, execucoes: 0, testes: 0, aprovados: 0, reprovados: 0, aprovacao: null, falhasPorModulo: [], ultimaExecucao: null, ultimaPorScript: {} }
+
+let fetchFalso: ReturnType<typeof apiFalsa>
+
 beforeEach(() => {
   localStorage.clear()
-  apiFalsa({
+  fetchFalso = apiFalsa({
     '/actuator/health': { status: 'UP' },
     '/api/projetos': projetos,
     '/api/projetos/cypress': cypress,
     '/api/projetos/k6': k6,
+    '/api/execucoes/resumo?projeto=cypress': resumo,
+    '/api/execucoes/resumo?projeto=k6': vazio,
+    '/api/execucoes?projeto=cypress': [execucao],
+    '/api/execucoes?projeto=k6': [],
+    '/api/execucoes/7': {
+      execucao, versaoFerramenta: 'Cypress 15.19.0', erro: null,
+      resultados: [
+        { id: 1, spec: 'cypress/e2e/user-behavior-matrix.cy.js', titulo: 'Matriz › standard_user › login', status: 'PASSOU', duracaoMs: 2000, mensagemErro: null, tipoErro: null },
+        { id: 2, spec: 'cypress/e2e/user-behavior-matrix.cy.js', titulo: 'Matriz › problem_user › imagens', status: 'FALHOU', duracaoMs: 66, mensagemErro: 'AssertionError: imagens duplicadas', tipoErro: 'Asserção' },
+      ],
+    },
+    '/api/importacoes/painel-node': { importadas: 5, ignoradas: 0, erros: [] },
   })
 })
 afterEach(() => vi.unstubAllGlobals())
@@ -42,6 +69,18 @@ describe('Visão geral', () => {
     expect(await within(linhas).findByText('npm run test')).toBeInTheDocument()
     expect(within(linhas).getByText('npm run test:diagnostics')).toBeInTheDocument()
     expect(within(linhas).getByText('2 specs')).toBeInTheDocument()
+  })
+
+  it('mostra os números do resumo vindos do banco', async () => {
+    renderComApp(<App />)
+
+    expect(await screen.findByText('82,9%', { selector: '.kpi-value' })).toBeInTheDocument()
+    expect(screen.getByText('Suíte instável')).toBeInTheDocument()
+    expect(screen.getByText('Matriz de usuários')).toBeInTheDocument()
+    // A linha do script mostra o resultado da última execução dele.
+    const linhas = screen.getByRole('region', { name: 'Execuções rápidas' })
+    expect(within(linhas).getByText('1 falha')).toBeInTheDocument()
+    expect(within(linhas).getByText('Nunca executado')).toBeInTheDocument() // "test" nunca rodou
   })
 
   it('mostra a URL do ambiente e a API online na barra lateral', async () => {
@@ -76,6 +115,27 @@ describe('Execuções', () => {
     expect(screen.getByRole('checkbox', { name: /user-behavior-matrix/ })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: /login/ })).not.toBeChecked()
     expect(screen.getByText('1 spec selecionado')).toBeInTheDocument()
+  })
+
+  it('lista o histórico e importa do painel Node com POST', async () => {
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/execucoes' })
+
+    expect(await screen.findByRole('link', { name: /test:diagnostics/ })).toHaveTextContent('importada do painel Node')
+
+    await user.click(screen.getByRole('button', { name: 'Importar do painel Node' }))
+
+    expect(await screen.findByText(/5 importadas/)).toBeInTheDocument()
+    expect(fetchFalso).toHaveBeenCalledWith('/api/importacoes/painel-node', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('detalhe agrupa por spec e mostra o erro da falha', async () => {
+    renderComApp(<App />, { rota: '/execucoes/7' })
+
+    expect(await screen.findByRole('heading', { name: 'test:diagnostics' })).toBeInTheDocument()
+    expect(screen.getByText('AssertionError: imagens duplicadas')).toBeInTheDocument()
+    expect(screen.getByText('Asserção')).toBeInTheDocument()
+    expect(screen.getByText('1 falha')).toBeInTheDocument()
   })
 
   it('"limpar" desmarca tudo e pede ao menos um spec', async () => {

@@ -5,14 +5,14 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
 | Camada | Tecnologia | Pasta |
 |---|---|---|
 | Backend (API REST) | Java 21 + Spring Boot 4 | `backend/` |
-| Banco de dados | PostgreSQL 17 (Docker) | etapa 3 |
+| Banco de dados | PostgreSQL 17 (Docker) + Flyway + JPA | `backend/compose.yaml`, `backend/src/main/resources/db/migration` |
 | Frontend | React 19 + TypeScript + Vite | `frontend/` |
 
 ## Etapas
 
 1. ✅ **Ambiente:** Java 21, WSL2, Docker Desktop.
 2. ✅ **Backend base:** camadas Controller → Service → Repository, DTOs, erros no formato Problem Details e testes.
-3. ⬜ **Banco:** PostgreSQL no Docker, migrações com Flyway, entidades JPA.
+3. ✅ **Banco:** PostgreSQL no Docker, migrações com Flyway, entidades JPA, importação do histórico do painel Node e testes com Testcontainers.
 4. ⬜ **Execução dos testes:** o backend dispara Cypress, Playwright e k6, grava os resultados e transmite o log ao vivo.
 5. 🟨 **Frontend:** a base está pronta (rotas, cliente de API, telas de projetos, testes). As telas crescem junto com cada etapa.
 6. ⬜ **Integrações e qualidade:** triagem com IA, Azure DevOps e testes do próprio painel.
@@ -66,8 +66,30 @@ cd backend
 | Endpoint | O que faz |
 |---|---|
 | `GET /api/projetos` | Lista os projetos de teste e se estão instalados |
-| `GET /api/projetos/{id}` | Detalhe com specs e navegadores (404 se não existir) |
+| `GET /api/projetos/{id}` | Detalhe com specs, navegadores, scripts e URL base (404 se não existir) |
+| `GET /api/execucoes?projeto=cypress` | Últimas 50 execuções do projeto |
+| `GET /api/execucoes/resumo?projeto=cypress` | Números da Visão geral (mês, aprovação, falhas por módulo) |
+| `GET /api/execucoes/{id}` | Execução com todos os resultados de teste |
+| `POST /api/importacoes/painel-node` | Importa o histórico de `Painel/data/runs` (idempotente) |
 | `GET /actuator/health` | Saúde da aplicação |
+
+### Banco de dados
+
+O `spring-boot:run` sobe o PostgreSQL do `backend/compose.yaml` automaticamente, com o Docker Desktop aberto. Para mexer no banco na mão:
+
+```bash
+docker compose up -d          # sobe o banco
+docker compose down -v        # APAGA tudo e recomeça do zero
+docker exec -it qapanel-postgres psql -U qapanel -d qapanel   # console SQL
+```
+
+As tabelas são criadas pelo **Flyway** a partir de `src/main/resources/db/migration/V*.sql`. Uma migração aplicada nunca é editada; mudanças viram um novo arquivo (`V2__...`).
+
+```
+execucao (1) ──< (N) resultado_teste
+  id, projeto_id, script, status,          id, execucao_id, spec, titulo,
+  iniciada_em, total, aprovados...         chave, status, mensagem_erro, tipo_erro
+```
 
 ### Como uma requisição percorre o backend
 
@@ -95,4 +117,7 @@ Erros lançados em qualquer camada sobem até o `ApiExceptionHandler`, que devol
 |---|---|---|---|
 | Unidade | `ProjetoServiceTest` | Nada: só a classe, com repositório falso | ~0,1s |
 | Web | `ProjetoControllerTest` | Só a camada HTTP, com o Service mockado | ~1s |
-| Integração | `PainelBackendApplicationTests` | A aplicação inteira, com a configuração real | ~4s |
+| Dados | `ExecucaoRepositoryTest`, `ImportadorPainelNodeTest` | JPA + Flyway contra um PostgreSQL real (Testcontainers) | ~12s |
+| Integração | `PainelBackendApplicationTests` | A aplicação inteira, com a configuração real e um PostgreSQL real | ~4s |
+
+Os testes com banco exigem o Docker Desktop aberto: o Testcontainers cria um PostgreSQL descartável para cada execução, sem tocar no banco de desenvolvimento.

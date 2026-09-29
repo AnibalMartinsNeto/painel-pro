@@ -24,10 +24,17 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+export const apiGet = <T>(path: string) => requisitar<T>('GET', path)
+export const apiPost = <T>(path: string, corpo?: unknown) => requisitar<T>('POST', path, corpo)
+
+async function requisitar<T>(method: string, path: string, corpo?: unknown): Promise<T> {
   let res: Response
   try {
-    res = await fetch(path, { headers: { Accept: 'application/json' } })
+    res = await fetch(path, {
+      method,
+      headers: { Accept: 'application/json', ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
+    })
   } catch {
     // fetch só rejeita quando nem chegou a resposta: servidor fora do ar.
     throw new ApiError(0, 'Não foi possível conectar à API. O backend está rodando?')
