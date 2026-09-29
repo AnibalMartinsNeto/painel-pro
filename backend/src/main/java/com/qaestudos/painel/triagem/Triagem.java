@@ -42,8 +42,24 @@ public class Triagem {
     private String modelo;
     private String observacoes;
     private Instant atualizadaEm;
+    private String jiraIssue;
+    private String jiraUrl;
+    private String demanda;
+    private Instant publicadaEm;
 
     protected Triagem() {}
+
+    /** Registra o bug criado no Jira. Uma triagem publica no máximo um bug. */
+    public void registrarPublicacao(String jiraIssue, String jiraUrl, String demanda, Instant agora) {
+        this.jiraIssue = jiraIssue;
+        this.jiraUrl = jiraUrl;
+        this.demanda = demanda;
+        this.publicadaEm = agora;
+    }
+
+    public boolean publicada() {
+        return jiraIssue != null;
+    }
 
     public Triagem(String projetoId, String chaveTeste) {
         this.projetoId = projetoId;
@@ -98,4 +114,8 @@ public class Triagem {
     public String getModelo() { return modelo; }
     public String getObservacoes() { return observacoes; }
     public Instant getAtualizadaEm() { return atualizadaEm; }
+    public String getJiraIssue() { return jiraIssue; }
+    public String getJiraUrl() { return jiraUrl; }
+    public String getDemanda() { return demanda; }
+    public Instant getPublicadaEm() { return publicadaEm; }
 }

@@ -1,51 +1,7 @@
-import { Link } from 'react-router'
 import { NotaEtapa } from '../../components/Estado'
-import { useConfiguracoes } from '../configuracoes/api'
 
 // Telas das etapas futuras, com o mesmo cabeçalho e estados vazios do
 // painel Node. Cada uma ganha sua pasta em features/ quando for construída.
-
-export function JiraPage() {
-  const { data: config } = useConfiguracoes()
-  const projeto = config?.jira.projeto ?? 'QA'
-  return (
-    <>
-      <header className="page-head">
-        <div>
-          <h1>Jira</h1>
-          <p>Busque testes pela chave da issue e acompanhe os bugs publicados pelo painel.</p>
-        </div>
-        {config?.jira.configurado ? (
-          <span className="pill ok">Projeto {config.jira.projeto}</span>
-        ) : (
-          <Link className="pill idle" to="/configuracoes">Não configurado · configurar</Link>
-        )}
-      </header>
-      <section className="card">
-        <span className="eyebrow" style={{ display: 'block', marginBottom: 12 }}>
-          Testes por issue
-        </span>
-        <div className="btn-row">
-          <input className="input" style={{ maxWidth: 200 }} placeholder={`${projeto}-123`} disabled />
-          <button className="btn primary" disabled>
-            Buscar
-          </button>
-        </div>
-        <p className="hint" style={{ margin: '10px 0 0' }}>
-          O painel procura a chave da issue (ex.: <code>{projeto}-123</code>) no título ou no código dos specs.
-        </p>
-      </section>
-      <section className="card flat">
-        <div className="card-head" style={{ padding: '16px 16px 0' }}>
-          <span className="eyebrow">Bugs publicados</span>
-          <span className="hint">0</span>
-        </div>
-        <div className="empty">Nenhum bug publicado ainda.</div>
-      </section>
-      <NotaEtapa etapa={6}>busca de specs pela issue e criação do bug no Jira, ligado à história testada.</NotaEtapa>
-    </>
-  )
-}
 
 export function RelatoriosPage() {
   return (

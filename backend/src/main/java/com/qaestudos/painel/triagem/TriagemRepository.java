@@ -14,6 +14,9 @@ public interface TriagemRepository extends JpaRepository<Triagem, Long> {
 
     List<Triagem> findByProjetoIdAndChaveTesteIn(String projetoId, Collection<String> chaves);
 
+    /** Bugs já publicados no Jira pelo painel, mais recentes primeiro. */
+    List<Triagem> findByProjetoIdAndJiraIssueIsNotNullOrderByPublicadaEmDesc(String projetoId);
+
     /**
      * Fila de triagem: para cada teste do projeto, pega a ocorrência MAIS
      * RECENTE e mantém só as que falharam — se o teste voltou a passar, ele

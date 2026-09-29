@@ -74,6 +74,17 @@ class ProjetoServiceTest {
     }
 
     @Test
+    void specsQueCitamAchaAChaveExataDaIssue() throws IOException {
+        Path e2e = Files.createDirectories(cypress.diretorio().resolve("cypress/e2e"));
+        Files.writeString(e2e.resolve("login.cy.js"), "describe('Login [DEV-1]', () => {})");
+        Files.writeString(e2e.resolve("produtos.cy.js"), "describe('Produtos [DEV-10]', () => {})");
+        Files.writeString(e2e.resolve("carrinho.cy.js"), "// valida dev-1 também"); // sem diferenciar maiúsculas
+
+        assertThat(service.specsQueCitam(cypress, "DEV-1"))
+                .containsExactly("cypress/e2e/carrinho.cy.js", "cypress/e2e/login.cy.js"); // DEV-10 fica de fora
+    }
+
+    @Test
     void baseUrlLeODeclaradoNoArquivoDeConfiguracao() throws IOException {
         Files.createDirectories(cypress.diretorio());
         Files.writeString(cypress.diretorio().resolve("cypress.config.js"), "e2e: { baseUrl: \"https://minha.app\" }");

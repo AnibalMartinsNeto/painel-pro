@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -18,6 +20,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -89,6 +92,60 @@ class JiraClienteTest {
         jiraFalso.expect(requestTo("https://empresa.atlassian.net/rest/api/3/project/QA")).andRespond(withStatus(HttpStatus.NOT_FOUND));
 
         assertThatThrownBy(() -> cliente.testarConexao()).hasMessageContaining("Projeto 'QA' não encontrado");
+    }
+
+    @Test
+    void criarBugEnviaCamposNoFormatoDoJiraEDevolveOLink() {
+        when(config.valor(ChaveConfig.JIRA_TIPO_ISSUE)).thenReturn(Optional.of("Bug"));
+        jiraFalso.expect(requestTo("https://empresa.atlassian.net/rest/api/3/issue"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.fields.project.key").value("QA"))
+                .andExpect(jsonPath("$.fields.issuetype.name").value("Bug"))
+                .andExpect(jsonPath("$.fields.summary").value("Login quebrado"))
+                .andExpect(jsonPath("$.fields.priority.name").value("High"))
+                .andExpect(jsonPath("$.fields.labels[0]").value("qa-panel"))
+                .andExpect(jsonPath("$.fields.description.type").value("doc")) // ADF
+                .andRespond(withSuccess("{\"id\":\"10005\",\"key\":\"QA-7\"}", MediaType.APPLICATION_JSON));
+
+        var issue = cliente.criarBug(new JiraCliente.NovoBug("Login quebrado",
+                new DocumentoAdf().paragrafo("descrição").montar(), "High", java.util.List.of("qa-panel")));
+
+        assertThat(issue.chave()).isEqualTo("QA-7");
+        assertThat(issue.url()).isEqualTo("https://empresa.atlassian.net/browse/QA-7");
+        jiraFalso.verify();
+    }
+
+    @Test
+    void campoRecusadoPeloJiraVoltaComOMotivo() {
+        when(config.valor(ChaveConfig.JIRA_TIPO_ISSUE)).thenReturn(Optional.of("Bug"));
+        jiraFalso.expect(requestTo("https://empresa.atlassian.net/rest/api/3/issue")).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"errors\":{\"priority\":\"Prioridade inválida\"}}"));
+
+        assertThatThrownBy(() -> cliente.criarBug(new JiraCliente.NovoBug("x", new DocumentoAdf().montar(), "Urgentíssima", java.util.List.of())))
+                .hasMessageContaining("Prioridade inválida");
+    }
+
+    @Test
+    void vincularLigaOBugADemandaComRelates() {
+        jiraFalso.expect(requestTo("https://empresa.atlassian.net/rest/api/3/issueLink"))
+                .andExpect(jsonPath("$.type.name").value("Relates"))
+                .andExpect(jsonPath("$.inwardIssue.key").value("QA-7"))
+                .andExpect(jsonPath("$.outwardIssue.key").value("QA-1"))
+                .andRespond(withStatus(HttpStatus.CREATED));
+
+        cliente.vincular("QA-7", "QA-1");
+        jiraFalso.verify();
+    }
+
+    @Test
+    void buscarIssueLeResumoTipoEStatus() {
+        jiraFalso.expect(requestTo("https://empresa.atlassian.net/rest/api/3/issue/QA-1?fields=summary,issuetype,status"))
+                .andRespond(withSuccess("""
+                        {"key":"QA-1","fields":{"summary":"Login do admin","issuetype":{"name":"Nova função"},"status":{"name":"Aberto"}}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(cliente.buscarIssue("QA-1")).isEqualTo(new JiraCliente.Issue("QA-1", "Login do admin", "Nova função", "Aberto",
+                "https://empresa.atlassian.net/browse/QA-1"));
     }
 
     @Test

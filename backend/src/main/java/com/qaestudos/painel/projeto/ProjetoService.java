@@ -57,6 +57,21 @@ public class ProjetoService {
         }
     }
 
+    /**
+     * Specs cujo código cita a chave de uma issue (ex.: "DEV-1"). A chave não
+     * pode estar colada em outras letras/números: "DEV-1" não casa "DEV-10".
+     */
+    public List<String> specsQueCitam(Projeto projeto, String chaveIssue) {
+        Pattern p = Pattern.compile("(?<![A-Za-z0-9-])" + Pattern.quote(chaveIssue) + "(?![0-9])", Pattern.CASE_INSENSITIVE);
+        return listarSpecs(projeto).stream().filter(spec -> {
+            try {
+                return p.matcher(Files.readString(projeto.diretorio().resolve(spec))).find();
+            } catch (IOException e) {
+                return false;
+            }
+        }).toList();
+    }
+
     /** URL da aplicação testada, lida do arquivo de configuração da ferramenta. */
     public Optional<String> baseUrl(Projeto projeto) {
         String arquivo = switch (projeto.tipo()) {

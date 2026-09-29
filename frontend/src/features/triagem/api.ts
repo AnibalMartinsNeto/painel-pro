@@ -28,6 +28,16 @@ export interface Triagem {
   modelo: string | null
   observacoes: string | null
   atualizadaEm: string
+  jiraIssue: string | null
+  jiraUrl: string | null
+  demanda: string | null
+}
+
+export interface Publicacao {
+  chave: string
+  url: string
+  demanda: string | null
+  aviso: string | null
 }
 
 export interface FalhaTriagem {
@@ -68,6 +78,18 @@ export function useAnalisar(projeto: string) {
   return useMutation({
     mutationFn: (resultadoId: number) => apiPost<Triagem>(`/api/triagem/${resultadoId}/analisar`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['triagem', projeto] }),
+  })
+}
+
+export function usePublicarNoJira(projeto: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ resultadoId, demanda }: { resultadoId: number; demanda: string }) =>
+      apiPost<Publicacao>(`/api/triagem/${resultadoId}/publicar`, { demanda: demanda || null }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['triagem', projeto] })
+      queryClient.invalidateQueries({ queryKey: ['jira-bugs', projeto] })
+    },
   })
 }
 

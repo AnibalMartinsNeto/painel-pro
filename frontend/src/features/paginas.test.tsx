@@ -180,6 +180,65 @@ describe('Triagem', () => {
   })
 })
 
+describe('Jira', () => {
+  const comJira = {
+    ...configuracoes,
+    jira: { url: 'https://empresa.atlassian.net', email: 'qa@x.com', projeto: 'DEV', tipoIssue: 'Bug', tokenConfigurado: true, configurado: true },
+  }
+
+  it('publicar salva a revisão, sugere a demanda pelo título e mostra o link do bug', async () => {
+    const falhaDaDemanda = { ...falhaPendente, titulo: 'Login - ServeRest [DEV-1] › deve logar', triagem: rascunhoIa }
+    const fetchDoTeste = apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': comJira,
+      '/api/triagem?projeto=cypress': [falhaDaDemanda],
+      '/api/triagem/2': rascunhoIa,
+      '/api/triagem/2/publicar': { chave: 'DEV-2', url: 'https://empresa.atlassian.net/browse/DEV-2', demanda: 'DEV-1', aviso: null },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/triagem/2' })
+
+    expect(await screen.findByLabelText(/Demanda testada/)).toHaveValue('DEV-1') // tirado do título do teste
+    await user.click(screen.getByRole('button', { name: 'Publicar no Jira' }))
+
+    await vi.waitFor(() => {
+      const chamadas = fetchDoTeste.mock.calls as unknown as [string, RequestInit | undefined][]
+      const indice = (url: string, metodo: string) => chamadas.findIndex(([u, i]) => u === url && i?.method === metodo)
+      expect(indice('/api/triagem/2/publicar', 'POST')).toBeGreaterThan(indice('/api/triagem/2', 'PUT')) // salva ANTES
+      expect(indice('/api/triagem/2', 'PUT')).toBeGreaterThanOrEqual(0)
+    })
+    const publicar = (fetchDoTeste.mock.calls as unknown as [string, RequestInit][]).find(([u]) => u === '/api/triagem/2/publicar')!
+    expect(JSON.parse(String(publicar[1].body))).toEqual({ demanda: 'DEV-1' })
+  })
+
+  it('busca a demanda e lista os specs que a citam', async () => {
+    apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': comJira,
+      '/api/jira/bugs?projeto=cypress': [],
+      '/api/jira/demandas/DEV-1?projeto=cypress': {
+        chave: 'DEV-1', erro: null, specs: ['cypress/e2e/login.cy.js'],
+        issue: { chave: 'DEV-1', resumo: '[ServeRest] Login do administrador', tipo: 'Nova função', status: 'Aberto', url: 'https://x/browse/DEV-1' },
+      },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/jira' })
+
+    await user.type(await screen.findByLabelText('Chave da issue'), 'dev-1')
+    await user.click(screen.getByRole('button', { name: 'Buscar' }))
+
+    expect(await screen.findByText('[ServeRest] Login do administrador')).toBeInTheDocument()
+    expect(screen.getByLabelText('Specs da demanda')).toHaveTextContent('cypress/e2e/login.cy.js')
+    expect(screen.getByRole('button', { name: 'Executar 1 spec' })).toBeEnabled()
+  })
+})
+
 describe('Configurações', () => {
   it('segredo configurado aparece só como selo: o campo vem vazio', async () => {
     renderComApp(<App />, { rota: '/configuracoes' })

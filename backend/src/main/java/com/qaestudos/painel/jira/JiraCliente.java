@@ -10,6 +10,9 @@ import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -69,6 +72,75 @@ public class JiraCliente {
         } catch (ResourceAccessException e) {
             throw new RequisicaoInvalidaException("Não foi possível conectar ao Jira em %s. Confira a URL.".formatted(texto(JIRA_URL)));
         }
+    }
+
+    /** Uma issue do Jira, no formato que o painel usa. */
+    public record Issue(String chave, String resumo, String tipo, String status, String url) {}
+
+    /** Dados do bug a criar. prioridade: Highest, High, Medium, Low ou Lowest. */
+    public record NovoBug(String resumo, Map<String, Object> descricao, String prioridade, List<String> etiquetas) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssueJson(String key, Campos fields) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        record Campos(String summary, Nome issuetype, Nome status) {}
+
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        record Nome(String name) {}
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Criada(String key) {}
+
+    /** GET /issue/{chave}: a demanda que os testes validam (ex.: DEV-1). */
+    public Issue buscarIssue(String chave) {
+        try {
+            IssueJson i = cliente().get().uri("/rest/api/3/issue/{chave}?fields=summary,issuetype,status", chave)
+                    .retrieve().body(IssueJson.class);
+            return new Issue(i.key(), i.fields().summary(), i.fields().issuetype().name(), i.fields().status().name(), link(i.key()));
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new RequisicaoInvalidaException("Issue '%s' não existe no Jira (ou a conta não tem acesso).".formatted(chave));
+        } catch (HttpClientErrorException.Unauthorized e) {
+            throw new RequisicaoInvalidaException("O Jira recusou as credenciais (401). Confira o e-mail e o API token.");
+        } catch (ResourceAccessException e) {
+            throw new RequisicaoInvalidaException("Não foi possível conectar ao Jira em %s.".formatted(texto(JIRA_URL)));
+        }
+    }
+
+    /** POST /issue: cria o bug no projeto configurado e devolve chave + link. */
+    public Issue criarBug(NovoBug bug) {
+        String projeto = obrigatorio(JIRA_PROJETO, "chave do projeto");
+        String tipo = config.valor(JIRA_TIPO_ISSUE).orElse("Bug");
+        Map<String, Object> campos = new LinkedHashMap<>();
+        campos.put("project", Map.of("key", projeto));
+        campos.put("issuetype", Map.of("name", tipo));
+        campos.put("summary", bug.resumo().length() > 250 ? bug.resumo().substring(0, 250) : bug.resumo());
+        campos.put("description", bug.descricao());
+        if (bug.prioridade() != null) campos.put("priority", Map.of("name", bug.prioridade()));
+        campos.put("labels", bug.etiquetas());
+        try {
+            Criada c = cliente().post().uri("/rest/api/3/issue").contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("fields", campos)).retrieve().body(Criada.class);
+            return new Issue(c.key(), bug.resumo(), tipo, null, link(c.key()));
+        } catch (HttpClientErrorException.BadRequest e) {
+            // O Jira devolve {"errors":{"campo":"motivo"}}: repassa para o QA entender o que ajustar.
+            throw new RequisicaoInvalidaException("O Jira recusou o bug: " + e.getResponseBodyAsString());
+        } catch (HttpClientErrorException.Unauthorized | HttpClientErrorException.Forbidden e) {
+            throw new RequisicaoInvalidaException("Sem permissão para criar issues no projeto %s (%s).".formatted(projeto, e.getStatusCode()));
+        } catch (ResourceAccessException e) {
+            throw new RequisicaoInvalidaException("Não foi possível conectar ao Jira em %s.".formatted(texto(JIRA_URL)));
+        }
+    }
+
+    /** POST /issueLink: "bug relaciona-se a demanda" (tipo de ligação padrão "Relates"). */
+    public void vincular(String bug, String demanda) {
+        cliente().post().uri("/rest/api/3/issueLink").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("type", Map.of("name", "Relates"), "inwardIssue", Map.of("key", bug), "outwardIssue", Map.of("key", demanda)))
+                .retrieve().toBodilessEntity();
+    }
+
+    private String link(String chave) {
+        return texto(JIRA_URL) + "/browse/" + chave;
     }
 
     /** Monta o cliente com URL base e cabeçalho de autenticação a partir das configurações. */

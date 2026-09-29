@@ -92,8 +92,7 @@ class ClientesIaTest {
 
             assertThatThrownBy(() -> cliente.gerar("p", "gemini-teste", "errada"))
                     .isInstanceOf(IaIndisponivelException.class)
-                    .hasMessageContaining("401")
-                    .hasMessageContaining("API key not valid");
+                    .hasMessage("Gemini respondeu 401: API key not valid"); // só o texto, sem o JSON
             servidor.verify(); // exatamente UMA chamada
         }
 

@@ -11,6 +11,7 @@ import {
   pendente,
   useAnalisar,
   useFilaTriagem,
+  usePublicarNoJira,
   useSalvarTriagem,
   type Classificacao,
   type FalhaTriagem,
@@ -113,6 +114,11 @@ function Detalhe({ falha, projeto, iaAtiva }: { falha: FalhaTriagem; projeto: st
   const t = falha.triagem
   const analisar = useAnalisar(projeto)
   const salvar = useSalvarTriagem(projeto)
+  const publicar = usePublicarNoJira(projeto)
+  const { data: config } = useConfiguracoes()
+  const jiraConfigurado = !!config?.jira.configurado
+  // Sugere a demanda a partir do título do teste: "Login [DEV-1] › ..." → DEV-1.
+  const [demanda, setDemanda] = useState(() => falha.titulo.match(/\b[A-Z][A-Z0-9]+-\d+\b/)?.[0] ?? '')
   const [classificacao, setClassificacao] = useState<Classificacao | ''>(t?.classificacao ?? t?.classificacaoSugerida ?? '')
   const [severidade, setSeveridade] = useState<Severidade | ''>(t?.severidade ?? '')
   const [titulo, setTitulo] = useState(t?.titulo ?? '')
@@ -121,19 +127,27 @@ function Detalhe({ falha, projeto, iaAtiva }: { falha: FalhaTriagem; projeto: st
   const [passos, setPassos] = useState((t?.passos ?? []).join('\n'))
   const [observacoes, setObservacoes] = useState(t?.observacoes ?? '')
 
-  const gravar = (c: Classificacao | '' = classificacao) =>
-    salvar.mutate({
-      resultadoId: falha.resultadoId,
-      revisao: {
-        classificacao: c || null,
-        severidade: severidade || null,
-        titulo,
-        esperado,
-        encontrado,
-        passos: passos.split('\n').map((p) => p.trim()).filter(Boolean),
-        observacoes,
-      },
-    })
+  const revisao = (c: Classificacao | '' = classificacao) => ({
+    classificacao: c || null,
+    severidade: severidade || null,
+    titulo,
+    esperado,
+    encontrado,
+    passos: passos.split('\n').map((p) => p.trim()).filter(Boolean),
+    observacoes,
+  })
+
+  const gravar = (c: Classificacao | '' = classificacao) => salvar.mutate({ resultadoId: falha.resultadoId, revisao: revisao(c) })
+
+  // Publica o que está NA TELA: salva a revisão primeiro e só então cria o bug.
+  const publicarNoJira = async () => {
+    try {
+      await salvar.mutateAsync({ resultadoId: falha.resultadoId, revisao: revisao() })
+    } catch {
+      return // o erro do salvamento já aparece na tela
+    }
+    publicar.mutate({ resultadoId: falha.resultadoId, demanda: demanda.trim() })
+  }
 
   const temRascunho = !!t?.titulo
   return (
@@ -251,13 +265,56 @@ function Detalhe({ falha, projeto, iaAtiva }: { falha: FalhaTriagem; projeto: st
               <button className="btn primary" type="button" onClick={() => gravar()} disabled={salvar.isPending}>
                 {salvar.isPending ? 'Salvando…' : 'Salvar triagem'}
               </button>
-              <button className="btn" type="button" disabled title="Chega na parte 3 (Jira)">Publicar no Jira</button>
-              {salvar.isSuccess && <span className="hint" role="status">Triagem salva.</span>}
+              {salvar.isSuccess && !publicar.isPending && <span className="hint" role="status">Triagem salva.</span>}
               {salvar.error && <span className="hint" role="alert" style={{ color: 'var(--red)' }}>{salvar.error.message}</span>}
             </div>
           </>
         )}
       </article>
+
+      {temRascunho && (
+        <article className="card" aria-label="Publicação no Jira">
+          <div className="card-head">
+            <span className="eyebrow">Jira</span>
+            {t?.jiraIssue && <Badge tom="bad">Bug publicado</Badge>}
+          </div>
+          {t?.jiraIssue ? (
+            <div className="btn-row">
+              <a className="btn green" href={t.jiraUrl ?? '#'} target="_blank" rel="noopener">
+                {t.jiraIssue} no Jira ↗
+              </a>
+              {t.demanda && <span className="hint">ligado à demanda {t.demanda}</span>}
+            </div>
+          ) : !jiraConfigurado ? (
+            <div className="note">
+              Configure o Jira em <Link to="/configuracoes">Configurações</Link> para publicar este bug.
+            </div>
+          ) : (
+            <>
+              <div className="form-grid">
+                <div className="field">
+                  <label htmlFor="tDemanda">
+                    Demanda testada <span className="hint">(opcional, ex.: DEV-1)</span>
+                  </label>
+                  <input id="tDemanda" className="input" value={demanda} onChange={(e) => setDemanda(e.target.value)} placeholder="DEV-1" />
+                </div>
+              </div>
+              <div className="btn-row" style={{ marginTop: 12 }}>
+                <button className="btn primary" type="button" onClick={publicarNoJira} disabled={publicar.isPending || salvar.isPending || !titulo.trim()}>
+                  {publicar.isPending ? 'Publicando…' : 'Publicar no Jira'}
+                </button>
+                <span className="hint">Salva a revisão e cria um Bug{demanda ? ` ligado a ${demanda.toUpperCase()}` : ''}.</span>
+              </div>
+            </>
+          )}
+          {publicar.data?.aviso && <div className="note" role="alert" style={{ marginTop: 10 }}>{publicar.data.aviso}</div>}
+          {publicar.error && (
+            <div className="note" role="alert" style={{ marginTop: 10, color: 'var(--red)' }}>
+              {publicar.error.message}
+            </div>
+          )}
+        </article>
+      )}
     </div>
   )
 }

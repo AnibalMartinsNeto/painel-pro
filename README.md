@@ -18,7 +18,7 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
 6. 🟨 **Integrações e qualidade:**
    - ✅ Configurações e segredos (AES-256-GCM, chave-mestra fora do banco), com Jira no lugar do Azure DevOps
    - ✅ Triagem com IA (Gemini ou Claude; fila por consulta nativa; rascunho editável; heurística sem chave)
-   - ⬜ Jira (configuração e teste de conexão prontos; falta publicar bugs)
+   - ✅ Jira: publicar o bug da triagem ligado à demanda, e buscar a demanda para rodar os specs que a citam
    - ⬜ Relatórios, screenshots, falha nova × recorrente
    - ⬜ CI no GitHub Actions
 
@@ -171,7 +171,20 @@ A **chave-mestra** que decifra os segredos fica fora do banco e do Git:
 - A triagem é por **teste** (projeto + "spec › título"), não por execução: a análise continua valendo se o teste falhar de novo.
 - A classificação da IA fica como **sugestão** até o QA confirmar.
 - A chamada à IA acontece **fora da transação do banco** (`TransactionTemplate`): esperar um serviço externo com uma conexão presa esgotaria o pool.
-- Gemini e Claude fazem novas tentativas com espera crescente em 429/503; erros como 401 falham na hora.
+- Gemini e Claude fazem novas tentativas com espera crescente em 429/503; erros como 401 falham na hora. Cada tentativa vai para o log.
+
+### Publicação no Jira
+
+| Endpoint | O que faz |
+|---|---|
+| `POST /api/triagem/{resultadoId}/publicar` | Corpo `{"demanda":"DEV-1"}`. Cria o Bug no Jira a partir da triagem salva e o liga à demanda ("Relates"). 409 se já foi publicado |
+| `GET /api/jira/demandas/{chave}?projeto=` | Dados da issue no Jira e os specs do projeto que citam a chave |
+| `GET /api/jira/bugs?projeto=` | Bugs já publicados pelo painel |
+
+- **Rastreabilidade pela chave:** o teste leva a chave da demanda no nome (`describe("Login - ServeRest [DEV-1]")`). O painel acha os specs que a citam e sugere a demanda na hora de publicar.
+- A descrição vai em **ADF** (o formato de documento do Jira Cloud), com passos, esperado, encontrado, análise e o erro. A severidade vira prioridade (CRÍTICA→Highest ... BAIXA→Low), com as etiquetas `qa-panel` e o projeto.
+- A chamada ao Jira fica **fora da transação**, como na IA. Se o vínculo falhar, o bug continua criado e a resposta traz um aviso.
+- A migração V5 guarda na triagem a chave, o link, a demanda e a data da publicação.
 
 ### Banco de dados
 
