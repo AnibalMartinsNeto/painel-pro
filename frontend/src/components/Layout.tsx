@@ -1,20 +1,24 @@
-import { NavLink, Outlet } from 'react-router'
+import { NavLink, Outlet, useLocation } from 'react-router'
+import { useProjetoAtual } from '../features/projetos/ProjetoAtual'
 import { ApiStatus } from './ApiStatus'
+import { Funcionalidades } from './Funcionalidades'
 
-// Itens do menu. "etapa" marca o que ainda será construído no PainelPro.
 const NAV = [
-  { to: '/projetos', label: 'Projetos' },
-  { to: '/execucoes', label: 'Execuções', etapa: 4 },
-  { to: '/triagem', label: 'Triagem IA', etapa: 6 },
-  { to: '/azure', label: 'Azure DevOps', etapa: 6 },
-  { to: '/relatorios', label: 'Relatórios', etapa: 4 },
+  { to: '/', label: 'Visão geral' },
+  { to: '/execucoes', label: 'Execuções' },
+  { to: '/triagem', label: 'Triagem IA' },
+  { to: '/azure', label: 'Azure DevOps' },
+  { to: '/relatorios', label: 'Relatórios' },
 ]
 
 /**
- * Moldura de todas as telas: barra lateral fixa + área de conteúdo.
+ * Moldura de todas as telas, igual ao painel Node: barra lateral com
+ * marca, seletor de projeto, menu e status; área de conteúdo à direita.
  * O <Outlet /> é onde o React Router desenha a página da rota atual.
  */
 export function Layout() {
+  const { pathname } = useLocation()
+
   return (
     <div className="shell">
       <div className="frame">
@@ -26,24 +30,75 @@ export function Layout() {
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                 </svg>
               </div>
-              <span>QA Panel <small>Pro</small></span>
+              <span>QA Panel</span>
             </div>
+            <SeletorProjeto />
             <nav className="nav" aria-label="Navegação principal">
               {NAV.map((item) => (
-                <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'active' : undefined)}>
+                <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => (isActive ? 'active' : undefined)}>
                   {item.label}
-                  {item.etapa && <span className="nav-tag">etapa {item.etapa}</span>}
                 </NavLink>
               ))}
             </nav>
           </div>
-          <div className="side-status">
-            <ApiStatus />
-          </div>
+          <StatusLateral />
         </aside>
-        <main className="main">
+        <main className="main" tabIndex={-1}>
           <Outlet />
         </main>
+      </div>
+      {pathname === '/' && <Funcionalidades />}
+    </div>
+  )
+}
+
+function SeletorProjeto() {
+  const { id, selecionar, projetos } = useProjetoAtual()
+  return (
+    <div className="project-pick">
+      <label htmlFor="projectSelect" className="side-label">
+        Projeto de testes
+      </label>
+      <select id="projectSelect" className="input" value={id} onChange={(e) => selecionar(e.target.value)}>
+        {(projetos.data ?? [{ id, nome: id, encontrado: true, instalado: true }]).map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.nome}
+            {!p.encontrado ? ' (não encontrado)' : !p.instalado ? ' (sem npm install)' : ''}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function StatusLateral() {
+  const { detalhe } = useProjetoAtual()
+  const baseUrl = detalhe.data?.baseUrl?.replace(/^https?:\/\//, '')
+
+  return (
+    <div className="side-status">
+      <div>
+        <span className="side-label">Ambiente</span>
+        <div className={`status-line ${detalhe.data?.encontrado === false ? 'off' : ''}`}>
+          <span className="dot pulse" aria-hidden="true" />
+          <span>Homologação</span>
+        </div>
+        {baseUrl && <div className="side-sub">{baseUrl}</div>}
+      </div>
+      <ApiStatus />
+      <div>
+        <span className="side-label">Azure DevOps</span>
+        <div className="status-line off">
+          <span className="dot" aria-hidden="true" />
+          <span>Não configurado</span>
+        </div>
+      </div>
+      <div>
+        <span className="side-label">Triagem IA</span>
+        <div className="status-line off">
+          <span className="dot" aria-hidden="true" />
+          <span>Etapa 6</span>
+        </div>
       </div>
     </div>
   )

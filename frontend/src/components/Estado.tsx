@@ -1,4 +1,5 @@
 import { ApiError } from '../api/client'
+import { useProjetoAtual } from '../features/projetos/ProjetoAtual'
 
 /** Estados de tela reaproveitados em todas as páginas: carregando e erro. */
 export function Carregando({ texto = 'Carregando…' }: { texto?: string }) {
@@ -19,17 +20,35 @@ export function ErroApi({ erro }: { erro: Error }) {
   )
 }
 
-export function EmBreve({ titulo, etapa, descricao }: { titulo: string; etapa: number; descricao: string }) {
-  return (
-    <>
-      <header className="page-head">
-        <h1>{titulo}</h1>
-        <span className="pill idle">Etapa {etapa}</span>
-      </header>
-      <div className="card empty">
-        <b>Em construção</b>
-        {descricao}
+/**
+ * Aviso no topo das páginas quando o projeto selecionado não está pronto
+ * (pasta ausente, dependências não instaladas ou API fora do ar).
+ */
+export function AvisoProjeto() {
+  const { detalhe } = useProjetoAtual()
+  if (detalhe.error) return <ErroApi erro={detalhe.error} />
+  const p = detalhe.data
+  if (!p) return null
+  if (!p.encontrado) return <div className="note">Projeto {p.nome} não encontrado. Verifique o diretório no application.yml do backend.</div>
+  if (!p.instalado)
+    return (
+      <div className="note">
+        Dependências do {p.nome} não instaladas.{' '}
+        {p.tipo === 'K6' ? (
+          <>Instale com <code>winget install GrafanaLabs.k6</code>.</>
+        ) : (
+          <>Rode <code>npm install</code> na pasta do projeto.</>
+        )}
       </div>
-    </>
+    )
+  return null
+}
+
+/** Nota padrão das funcionalidades que ainda serão construídas. */
+export function NotaEtapa({ etapa, children }: { etapa: number; children: React.ReactNode }) {
+  return (
+    <div className="note">
+      <b style={{ color: 'var(--amber)' }}>Etapa {etapa}:</b> {children}
+    </div>
   )
 }

@@ -38,6 +38,12 @@ public class ProjetoController {
     @GetMapping("/{id}")
     public ProjetoDetalheResponse detalhar(@PathVariable String id) {
         Projeto projeto = service.buscar(id);
-        return ProjetoDetalheResponse.de(projeto, service.status(projeto), service.listarSpecs(projeto));
+        List<String> specs = service.listarSpecs(projeto);
+        return ProjetoDetalheResponse.de(
+                projeto,
+                service.status(projeto),
+                service.baseUrl(projeto).orElse(null),
+                specs,
+                service.listarScripts(projeto, specs));
     }
 }

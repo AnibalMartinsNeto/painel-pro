@@ -3,6 +3,7 @@
 // Os tipos abaixo espelham os DTOs do backend Java:
 //   ProjetoResumo  ↔ ProjetoResumoResponse.java
 //   ProjetoDetalhe ↔ ProjetoDetalheResponse.java
+//   ScriptExecucao ↔ ScriptExecucao.java
 // Se o contrato mudar no Java, atualize aqui — o TypeScript então aponta
 // todos os pontos do front que precisam de ajuste.
 import { useQuery } from '@tanstack/react-query'
@@ -18,9 +19,18 @@ export interface ProjetoResumo {
   instalado: boolean
 }
 
+export interface ScriptExecucao {
+  nome: string
+  comando: string
+  specs: string[]
+  navegador: string | null
+}
+
 export interface ProjetoDetalhe extends ProjetoResumo {
+  baseUrl: string | null
   navegadores: string[]
   specs: string[]
+  scripts: ScriptExecucao[]
 }
 
 export const listarProjetos = () => apiGet<ProjetoResumo[]>('/api/projetos')
@@ -34,5 +44,5 @@ export function useProjetos() {
 }
 
 export function useProjeto(id: string) {
-  return useQuery({ queryKey: ['projetos', id], queryFn: () => buscarProjeto(id) })
+  return useQuery({ queryKey: ['projetos', id], queryFn: () => buscarProjeto(id), enabled: !!id })
 }

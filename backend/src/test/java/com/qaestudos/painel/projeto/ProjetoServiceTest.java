@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Teste de UNIDADE do Service: sem Spring, sem servidor, sem banco.
@@ -45,7 +46,38 @@ class ProjetoServiceTest {
                 return findAll().stream().filter(p -> p.id().equals(id)).findFirst();
             }
         };
-        service = new ProjetoService(repositorioFalso);
+        service = new ProjetoService(repositorioFalso, JsonMapper.builder().build());
+    }
+
+    @Test
+    void listarScriptsLeOPackageJsonEIgnoraScriptsQueNaoRodamTestes() throws IOException {
+        Files.createDirectories(cypress.diretorio());
+        Files.writeString(cypress.diretorio().resolve("package.json"), """
+                {"name":"x","scripts":{
+                  "cy:open":"cypress open",
+                  "test":"cypress run --spec \\"cypress/e2e/login.cy.js\\"",
+                  "test:all":"cypress run"}}
+                """);
+
+        List<ScriptExecucao> scripts = service.listarScripts(cypress, List.of("cypress/e2e/login.cy.js", "cypress/e2e/checkout.cy.js"));
+
+        assertThat(scripts).extracting(ScriptExecucao::nome).containsExactly("test", "test:all");
+        assertThat(scripts.get(0).specs()).containsExactly("cypress/e2e/login.cy.js");
+        assertThat(scripts.get(1).specs()).hasSize(2); // sem --spec: roda todos
+    }
+
+    @Test
+    void listarScriptsDevolveVazioComPackageJsonInvalido() throws IOException {
+        Files.createDirectories(cypress.diretorio());
+        Files.writeString(cypress.diretorio().resolve("package.json"), "{ isso não é json");
+        assertThat(service.listarScripts(cypress, List.of())).isEmpty();
+    }
+
+    @Test
+    void baseUrlLeODeclaradoNoArquivoDeConfiguracao() throws IOException {
+        Files.createDirectories(cypress.diretorio());
+        Files.writeString(cypress.diretorio().resolve("cypress.config.js"), "e2e: { baseUrl: \"https://minha.app\" }");
+        assertThat(service.baseUrl(cypress)).contains("https://minha.app");
     }
 
     @Test

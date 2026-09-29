@@ -1,5 +1,6 @@
 package com.qaestudos.painel.projeto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.qaestudos.painel.common.RecursoNaoEncontradoException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -7,9 +8,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Regras de negócio sobre projetos: localizar, verificar se estão prontos
@@ -21,10 +28,55 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProjetoService {
 
-    private final ProjetoRepository repository;
+    private static final Pattern BASE_URL_DECLARADA = Pattern.compile("baseU[rR][lL]\\s*:\\s*[\"'`]([^\"'`]+)");
+    private static final Pattern QUALQUER_URL = Pattern.compile("https?://[^\"'`\\s)]+");
 
-    public ProjetoService(ProjetoRepository repository) {
+    private final ProjetoRepository repository;
+    private final JsonMapper jsonMapper;
+
+    // O Spring já cria um JsonMapper (Jackson 3) configurado; reaproveitamos.
+    public ProjetoService(ProjetoRepository repository, JsonMapper jsonMapper) {
         this.repository = repository;
+        this.jsonMapper = jsonMapper;
+    }
+
+    /** Só o campo "scripts" do package.json interessa; o resto é ignorado. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PackageJson(Map<String, String> scripts) {}
+
+    /** Scripts do package.json que executam testes, com os specs de cada um. */
+    public List<ScriptExecucao> listarScripts(Projeto projeto, List<String> specs) {
+        Path arquivo = projeto.diretorio().resolve("package.json");
+        if (!Files.isRegularFile(arquivo)) {
+            return List.of();
+        }
+        try {
+            PackageJson pkg = jsonMapper.readValue(Files.readString(arquivo), PackageJson.class);
+            return pkg.scripts() == null ? List.of() : ScriptsExtrator.extrair(projeto.tipo(), pkg.scripts(), specs);
+        } catch (IOException | JacksonException e) {
+            // package.json ilegível não deve derrubar a tela: só não há scripts.
+            return List.of();
+        }
+    }
+
+    /** URL da aplicação testada, lida do arquivo de configuração da ferramenta. */
+    public Optional<String> baseUrl(Projeto projeto) {
+        String arquivo = switch (projeto.tipo()) {
+            case CYPRESS -> "cypress.config.js";
+            case PLAYWRIGHT -> "playwright.config.js";
+            case K6 -> "lib/config.js";
+        };
+        try {
+            String conteudo = Files.readString(projeto.diretorio().resolve(arquivo));
+            Matcher declarada = BASE_URL_DECLARADA.matcher(conteudo);
+            if (declarada.find()) {
+                return Optional.of(declarada.group(1));
+            }
+            Matcher qualquer = QUALQUER_URL.matcher(conteudo);
+            return qualquer.find() ? Optional.of(qualquer.group()) : Optional.empty();
+        } catch (IOException e) {
+            return Optional.empty();
+        }
     }
 
     public List<Projeto> listar() {
