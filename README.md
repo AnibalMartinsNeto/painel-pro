@@ -6,7 +6,7 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
 |---|---|---|
 | Backend (API REST) | Java 21 + Spring Boot 4 | `backend/` |
 | Banco de dados | PostgreSQL 17 (Docker) | etapa 3 |
-| Frontend | React + TypeScript | etapa 5 |
+| Frontend | React 19 + TypeScript + Vite | `frontend/` |
 
 ## Etapas
 
@@ -14,8 +14,46 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
 2. ✅ **Backend base:** camadas Controller → Service → Repository, DTOs, erros no formato Problem Details e testes.
 3. ⬜ **Banco:** PostgreSQL no Docker, migrações com Flyway, entidades JPA.
 4. ⬜ **Execução dos testes:** o backend dispara Cypress, Playwright e k6, grava os resultados e transmite o log ao vivo.
-5. ⬜ **Frontend:** React + TypeScript consumindo a API.
+5. 🟨 **Frontend:** a base está pronta (rotas, cliente de API, telas de projetos, testes). As telas crescem junto com cada etapa.
 6. ⬜ **Integrações e qualidade:** triagem com IA, Azure DevOps e testes do próprio painel.
+
+## Como rodar tudo
+
+São dois processos, cada um num terminal:
+
+```bash
+# Terminal 1: API
+cd backend
+.\mvnw.cmd spring-boot:run      # http://localhost:8080
+
+# Terminal 2: interface
+cd frontend
+npm install                     # só na primeira vez
+npm run dev                     # http://localhost:5173  ← abra este no navegador
+```
+
+O front chama `/api/...` na própria porta 5173, e o Vite repassa ao backend na 8080 (proxy configurado em `frontend/vite.config.ts`). Assim o navegador não bloqueia as chamadas por CORS.
+
+## Frontend
+
+```
+src/
+├── main.tsx              ← entrada: provedores globais (cache de dados, roteador)
+├── App.tsx               ← mapa de rotas (URL → página)
+├── api/client.ts         ← único ponto que faz fetch; converte erros da API (ApiError)
+├── components/           ← peças reutilizáveis: Layout, Badge, estados de carregando/erro
+├── features/projetos/    ← uma funcionalidade completa
+│   ├── api.ts              tipos (espelham os DTOs Java) + hooks de dados
+│   ├── ProjetosPage.tsx    tela /projetos
+│   ├── ProjetoDetalhePage  tela /projetos/:id
+│   └── *.test.tsx          testes de componente
+└── test/                 ← setup e utilitários de teste
+```
+
+```bash
+npm test          # testes (Vitest + Testing Library), com a API simulada
+npm run build     # checa tipos e gera a versão de produção em dist/
+```
 
 ## Backend
 
