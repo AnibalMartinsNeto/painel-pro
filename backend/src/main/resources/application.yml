@@ -50,21 +50,21 @@ painel:
     - id: cypress
       nome: Cypress
       tipo: CYPRESS
-      diretorio: ../../Cypress
+      diretorio: ../../serverest-qa/cypress
       pasta-specs: cypress/e2e
       padrao-spec: '.*\.cy\.[jt]sx?$'
       navegadores: [electron, chrome, edge, firefox]
     - id: playwright
       nome: Playwright
       tipo: PLAYWRIGHT
-      diretorio: ../../Playwright
+      diretorio: ../../serverest-qa/playwright
       pasta-specs: tests
       padrao-spec: '.*\.(spec|test)\.[jt]sx?$'
       navegadores: [chromium, chrome, msedge, firefox, webkit]
     - id: k6
       nome: k6 (desempenho)
       tipo: K6
-      diretorio: ../../K6
+      diretorio: ../../serverest-qa/k6
       pasta-specs: tests
       padrao-spec: '.*\.js$'
       navegadores: []
