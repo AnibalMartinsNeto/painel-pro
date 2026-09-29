@@ -1,0 +1,44 @@
+# Configuração da aplicação.
+# O Spring lê este arquivo na inicialização e injeta os valores nas
+# classes anotadas com @ConfigurationProperties (ver PainelProperties).
+spring:
+  application:
+    name: painel-backend
+
+server:
+  port: 8080
+
+# Actuator: endpoints de operação. /actuator/health diz se a aplicação
+# está de pé — é o que um orquestrador (Docker, Kubernetes) consulta.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Projetos de teste que o painel conhece. Os diretórios são relativos à
+# pasta de onde o backend é executado (PainelPro/backend) e podem ser
+# sobrescritos por variável de ambiente, ex.: PAINEL_PROJETOS_0_DIRETORIO.
+painel:
+  projetos:
+    - id: cypress
+      nome: Cypress
+      tipo: CYPRESS
+      diretorio: ../../Cypress
+      pasta-specs: cypress/e2e
+      padrao-spec: '.*\.cy\.[jt]sx?$'
+      navegadores: [electron, chrome, edge, firefox]
+    - id: playwright
+      nome: Playwright
+      tipo: PLAYWRIGHT
+      diretorio: ../../Playwright
+      pasta-specs: tests
+      padrao-spec: '.*\.(spec|test)\.[jt]sx?$'
+      navegadores: [chromium, chrome, msedge, firefox, webkit]
+    - id: k6
+      nome: k6 (desempenho)
+      tipo: K6
+      diretorio: ../../K6
+      pasta-specs: tests
+      padrao-spec: '.*\.js$'
+      navegadores: []
