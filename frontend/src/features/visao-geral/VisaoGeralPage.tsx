@@ -12,6 +12,7 @@ import {
   type ResumoProjeto,
 } from '../execucoes/api'
 import { useProjetoAtual } from '../projetos/ProjetoAtual'
+import { pendente, useFilaTriagem } from '../triagem/api'
 import type { ScriptExecucao } from '../projetos/api'
 
 // Os números vêm de GET /api/execucoes/resumo — agregados pelo PostgreSQL
@@ -24,6 +25,8 @@ export function VisaoGeralPage() {
   const cancelar = useCancelarExecucao()
   const navigate = useNavigate()
   const scripts = detalhe.data?.scripts ?? []
+  const { data: fila } = useFilaTriagem(id)
+  const naFila = fila?.filter(pendente).length ?? 0
 
   const mes = resumo ? new Date(`${resumo.mes}-02`).toLocaleDateString('pt-BR', { month: 'long' }) : ''
   const corAprovacao = resumo?.aprovacao == null || resumo.aprovacao >= 90 ? 'green' : 'amber'
@@ -56,10 +59,10 @@ export function VisaoGeralPage() {
         </article>
         <article className="card kpi">
           <div className="accent amber" />
-          <span className="eyebrow">Falhas no mês</span>
+          <span className="eyebrow">Falhas na fila</span>
           <div>
-            <div className="kpi-value amber">{resumo?.reprovados ?? 0}</div>
-            <div className="kpi-sub">triagem chega na etapa 6</div>
+            <div className="kpi-value amber">{naFila}</div>
+            <div className="kpi-sub">{naFila ? 'aguardando triagem' : 'triagem em dia'}</div>
           </div>
         </article>
         <article className="card kpi">

@@ -17,7 +17,7 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
 5. 🟨 **Frontend:** a base está pronta (rotas, cliente de API, telas de projetos, testes). As telas crescem junto com cada etapa.
 6. 🟨 **Integrações e qualidade:**
    - ✅ Configurações e segredos (AES-256-GCM, chave-mestra fora do banco), com Jira no lugar do Azure DevOps
-   - ⬜ Triagem com IA
+   - ✅ Triagem com IA (Gemini ou Claude; fila por consulta nativa; rascunho editável; heurística sem chave)
    - ⬜ Jira (configuração e teste de conexão prontos; falta publicar bugs)
    - ⬜ Relatórios, screenshots, falha nova × recorrente
    - ⬜ CI no GitHub Actions
@@ -116,6 +116,19 @@ A **chave-mestra** que decifra os segredos fica fora do banco e do Git:
 | Desenvolvimento | arquivo `~/.qapanel/chave-mestra.key`, criado na primeira execução |
 
 > **Faça backup** de `~/.qapanel/chave-mestra.key`. Sem ela, os segredos gravados não podem ser lidos; seria preciso cadastrá-los de novo.
+
+### Triagem com IA
+
+| Endpoint | O que faz |
+|---|---|
+| `GET /api/triagem?projeto=cypress` | Fila: testes cuja ocorrência MAIS RECENTE falhou, com a triagem de cada um |
+| `POST /api/triagem/{resultadoId}/analisar` | Gera o rascunho do bug com a IA configurada (ou heurística, sem chave). 502 se a IA falhar |
+| `PUT /api/triagem/{resultadoId}` | Grava a revisão do QA (classificação, severidade, textos, passos) |
+
+- A triagem é por **teste** (projeto + "spec › título"), não por execução: a análise continua valendo se o teste falhar de novo.
+- A classificação da IA fica como **sugestão** até o QA confirmar.
+- A chamada à IA acontece **fora da transação do banco** (`TransactionTemplate`): esperar um serviço externo com uma conexão presa esgotaria o pool.
+- Gemini e Claude fazem novas tentativas com espera crescente em 429/503; erros como 401 falham na hora.
 
 ### Banco de dados
 

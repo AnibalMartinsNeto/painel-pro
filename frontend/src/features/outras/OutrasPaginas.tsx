@@ -5,24 +5,6 @@ import { useConfiguracoes } from '../configuracoes/api'
 // Telas das etapas futuras, com o mesmo cabeçalho e estados vazios do
 // painel Node. Cada uma ganha sua pasta em features/ quando for construída.
 
-export function TriagemPage() {
-  return (
-    <>
-      <header className="page-head">
-        <div>
-          <h1>Triagem IA</h1>
-          <p>Falhas mais recentes de cada teste. A IA lê o erro e o código do spec e sugere o bug.</p>
-        </div>
-        <span className="pill idle">Não configurado</span>
-      </header>
-      <div className="card empty">
-        <b>Nenhuma falha registrada</b>Quando um teste falhar ele aparece aqui para triagem.
-      </div>
-      <NotaEtapa etapa={6}>análise das falhas com IA (Gemini ou Claude) e rascunho do bug editável.</NotaEtapa>
-    </>
-  )
-}
-
 export function JiraPage() {
   const { data: config } = useConfiguracoes()
   const projeto = config?.jira.projeto ?? 'QA'

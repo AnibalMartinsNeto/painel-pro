@@ -60,8 +60,23 @@ beforeEach(() => {
     '/api/execucoes/em-andamento': [204, null],
     '/api/execucoes': { ...execucao, id: 8, status: 'EM_ANDAMENTO' },
     '/api/configuracoes': configuracoes,
+    '/api/triagem?projeto=cypress': [falhaPendente],
+    '/api/triagem/2/analisar': rascunhoIa,
+    '/api/triagem/2': { ...rascunhoIa, classificacao: 'BUG_APLICACAO' },
   })
 })
+
+const falhaPendente = {
+  resultadoId: 2, execucaoId: 7, spec: 'cypress/e2e/user-behavior-matrix.cy.js', titulo: 'Matriz › problem_user › imagens',
+  chave: 'x', mensagemErro: 'AssertionError: imagens duplicadas', tipoErro: 'Asserção',
+  ocorridaEm: '2026-09-28T23:50:58Z', navegador: 'electron', triagem: null,
+}
+const rascunhoIa = {
+  classificacao: null, classificacaoSugerida: 'BUG_APLICACAO', severidade: 'MEDIA', titulo: 'Imagens duplicadas para problem_user',
+  esperado: 'Cada produto com sua imagem', encontrado: 'Imagens repetidas', passos: ['Logar com problem_user', 'Ver o inventário'],
+  analise: 'Defeito conhecido do SauceDemo.', origemRascunho: 'IA', modelo: 'gemini-3.8-flash', observacoes: null,
+  atualizadaEm: '2026-09-28T23:59:00Z',
+}
 
 const configuracoes = {
   ambiente: 'Homologação',
@@ -105,6 +120,63 @@ describe('Visão geral', () => {
 
     expect(await screen.findByText('www.saucedemo.com')).toBeInTheDocument()
     expect(await screen.findByText('Online')).toBeInTheDocument()
+  })
+})
+
+describe('Triagem', () => {
+  it('mostra a falha pendente na fila, no menu e na Visão geral', async () => {
+    renderComApp(<App />)
+
+    expect(await screen.findByTitle('Falhas aguardando triagem')).toHaveTextContent('1') // menu
+    expect(await screen.findByText('aguardando triagem')).toBeInTheDocument() // KPI da Visão geral
+  })
+
+  it('"Analisar com IA" chama a API e a sugestão aparece pré-selecionada', async () => {
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/triagem' })
+
+    expect(await screen.findByText('Pendentes (1)')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Analisar com IA' }))
+
+    await vi.waitFor(() => expect(fetchFalso).toHaveBeenCalledWith('/api/triagem/2/analisar', expect.objectContaining({ method: 'POST' })))
+  })
+
+  it('link para falha que não está na fila avisa em vez de abrir outra', async () => {
+    renderComApp(<App />, { rota: '/triagem/999' })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Falha #999 fora da fila deste projeto')
+    expect(screen.queryByText('Bug sugerido')).not.toBeInTheDocument()
+  })
+
+  it('com rascunho, salvar envia a revisão com os passos em lista', async () => {
+    const fetchDoTeste = apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': configuracoes,
+      '/api/triagem?projeto=cypress': [{ ...falhaPendente, triagem: rascunhoIa }],
+      '/api/triagem/2': { ...rascunhoIa, classificacao: 'BUG_APLICACAO' },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/triagem/2' })
+
+    expect(await screen.findByDisplayValue('Imagens duplicadas para problem_user')).toBeInTheDocument()
+    expect(screen.getByText(/sugestão da IA: Bug da aplicação/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Classificação/)).toHaveValue('BUG_APLICACAO') // sugestão já vem escolhida
+
+    await user.click(screen.getByRole('button', { name: 'Salvar triagem' }))
+
+    await vi.waitFor(() => {
+      const put = (fetchDoTeste.mock.calls as unknown as [string, RequestInit | undefined][])
+        .find(([u, init]) => u === '/api/triagem/2' && init?.method === 'PUT')
+      expect(put).toBeDefined()
+      expect(JSON.parse(String(put![1]!.body))).toMatchObject({
+        classificacao: 'BUG_APLICACAO',
+        severidade: 'MEDIA',
+        passos: ['Logar com problem_user', 'Ver o inventário'],
+      })
+    })
   })
 })
 

@@ -1,5 +1,6 @@
 package com.qaestudos.painel.common;
 
+import com.qaestudos.painel.triagem.ia.IaIndisponivelException;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -48,6 +49,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail jsonInvalido(HttpMessageNotReadableException ex) {
         return problema(HttpStatus.BAD_REQUEST, "JSON inválido", "O corpo da requisição não é um JSON válido para esta operação.");
+    }
+
+    /** 502 Bad Gateway: quem falhou foi um serviço externo do qual dependemos (a IA). */
+    @ExceptionHandler(IaIndisponivelException.class)
+    public ProblemDetail iaIndisponivel(IaIndisponivelException ex) {
+        return problema(HttpStatus.BAD_GATEWAY, "Serviço de IA indisponível", ex.getMessage());
     }
 
     @ExceptionHandler(ConflitoException.class)

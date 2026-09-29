@@ -98,7 +98,12 @@ function LinhaTeste({ t }: { t: ResultadoTeste }) {
       </div>
       {t.status === 'FALHOU' && (
         <>
-          <div className="test-tools">{t.tipoErro && <Badge tom="bad">{t.tipoErro}</Badge>}</div>
+          <div className="test-tools">
+            {t.tipoErro && <Badge tom="bad">{t.tipoErro}</Badge>}
+            <Link className="btn sm green" to={`/triagem/${t.id}`}>
+              Triar com IA
+            </Link>
+          </div>
           {t.mensagemErro && <div className="err">{t.mensagemErro}</div>}
         </>
       )}

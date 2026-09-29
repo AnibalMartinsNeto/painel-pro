@@ -1,0 +1,63 @@
+package com.qaestudos.painel.triagem;
+
+import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface TriagemRepository extends JpaRepository<Triagem, Long> {
+
+    Optional<Triagem> findByProjetoIdAndChaveTeste(String projetoId, String chaveTeste);
+
+    List<Triagem> findByProjetoIdAndChaveTesteIn(String projetoId, Collection<String> chaves);
+
+    /**
+     * Fila de triagem: para cada teste do projeto, pega a ocorrência MAIS
+     * RECENTE e mantém só as que falharam — se o teste voltou a passar, ele
+     * sai da fila sozinho.
+     *
+     * <p>Consulta NATIVA (SQL do PostgreSQL, não JPQL): o
+     * {@code DISTINCT ON (r.chave)} com {@code ORDER BY ... DESC} devolve uma
+     * linha por chave, a primeira da ordenação — ou seja, a mais nova. Os
+     * apelidos entre aspas preservam maiúsculas para casar com a projeção.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT * FROM (
+                SELECT DISTINCT ON (r.chave)
+                       r.id            AS "resultadoId",
+                       e.id            AS "execucaoId",
+                       r.spec          AS "spec",
+                       r.titulo        AS "titulo",
+                       r.chave         AS "chave",
+                       r.status        AS "status",
+                       r.mensagem_erro AS "mensagemErro",
+                       r.tipo_erro     AS "tipoErro",
+                       e.iniciada_em   AS "ocorridaEm",
+                       e.navegador     AS "navegador"
+                FROM resultado_teste r
+                JOIN execucao e ON e.id = r.execucao_id
+                WHERE e.projeto_id = :projetoId
+                  AND e.status IN ('PASSOU', 'FALHOU')
+                ORDER BY r.chave, e.iniciada_em DESC, r.id DESC
+            ) ultima
+            WHERE ultima."status" = 'FALHOU'
+            ORDER BY ultima."ocorridaEm" DESC
+            """)
+    List<FalhaEmAberto> listarFalhasEmAberto(@Param("projetoId") String projetoId);
+
+    /** Projeção por interface: o Spring implementa os getters a partir das colunas da consulta. */
+    interface FalhaEmAberto {
+        Long getResultadoId();
+        Long getExecucaoId();
+        String getSpec();
+        String getTitulo();
+        String getChave();
+        String getMensagemErro();
+        String getTipoErro();
+        Instant getOcorridaEm();
+        String getNavegador();
+    }
+}
