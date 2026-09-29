@@ -116,6 +116,8 @@
 	</dependencies>
 
 	<build>
+		<!-- Nome fixo do jar (target/painel-backend.jar), usado pelo iniciar.bat -->
+		<finalName>painel-backend</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>

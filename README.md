@@ -22,7 +22,50 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
    - ⬜ Relatórios, screenshots, falha nova × recorrente
    - ⬜ CI no GitHub Actions
 
-## Como rodar tudo
+## Como rodar do zero
+
+### 1. Pré-requisitos (uma vez)
+
+```bash
+winget install EclipseAdoptium.Temurin.21.JDK
+winget install OpenJS.NodeJS.LTS
+winget install Docker.DockerDesktop
+```
+
+O Docker Desktop pede o WSL2 e uma reinicialização na primeira vez.
+
+### 2. Baixar os projetos lado a lado
+
+```
+QA_Estudos/
+├── PainelPro/      ← git clone https://github.com/AnibalMartinsNeto/painel-pro.git PainelPro
+└── serverest-qa/   ← git clone https://github.com/AnibalMartinsNeto/serverest-qa.git
+```
+
+O painel procura os projetos de teste em `../serverest-qa` (configurável em `backend/src/main/resources/application.yml`).
+
+### 3. Iniciar
+
+Dois cliques em **`iniciar.bat`**. Ele:
+
+1. confere Java, Node e Docker;
+2. abre o Docker Desktop se estiver fechado (o PostgreSQL roda nele);
+3. instala as dependências do front na primeira vez;
+4. empacota o backend **só se o código mudou** desde a última vez;
+5. abre as janelas **"PainelPro - Backend"** (`java -jar`, ~8s) e **"PainelPro - Front"** (Vite);
+6. espera a API responder e abre http://localhost:5173.
+
+Para desligar tudo: **`parar.bat`** (fecha as janelas e para o banco, sem apagar dados).
+
+| Situação | Tempo aproximado até abrir |
+|---|---|
+| Uso normal (código sem mudança, Docker aberto) | ~10 s |
+| Depois de mudar o código do backend | ~25 s (empacota uma vez) |
+| Docker Desktop fechado | + o tempo de o Docker subir (~30-60 s) |
+
+> Dica: no Docker Desktop, ative *Settings → General → Start Docker Desktop when you sign in* para ele já estar pronto quando você ligar o computador.
+
+### Manualmente (para desenvolvimento)
 
 São dois processos, cada um num terminal:
 
