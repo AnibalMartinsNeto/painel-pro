@@ -6,10 +6,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -93,7 +91,7 @@ public class ProjetoService {
         boolean instalado = encontrado && switch (projeto.tipo()) {
             case CYPRESS -> Files.isDirectory(projeto.diretorio().resolve("node_modules/cypress"));
             case PLAYWRIGHT -> Files.isDirectory(projeto.diretorio().resolve("node_modules/@playwright/test"));
-            case K6 -> k6Instalado();
+            case K6 -> LocalizadorK6.localizar().isPresent();
         };
         return new StatusProjeto(encontrado, instalado);
     }
@@ -114,17 +112,5 @@ public class ProjetoService {
         } catch (IOException e) {
             throw new UncheckedIOException("Falha ao listar specs de " + projeto.id(), e);
         }
-    }
-
-    // O k6 é um executável, não um pacote npm: procura no PATH e na pasta
-    // padrão de instalação do winget.
-    private boolean k6Instalado() {
-        String programFiles = Objects.requireNonNullElse(System.getenv("ProgramFiles"), "C:\\Program Files");
-        Stream<Path> candidatos = Stream.concat(
-                Stream.of(Path.of(programFiles, "k6", "k6.exe")),
-                Arrays.stream(Objects.requireNonNullElse(System.getenv("PATH"), "").split(java.io.File.pathSeparator))
-                        .filter(s -> !s.isBlank())
-                        .flatMap(dir -> Stream.of(Path.of(dir, "k6.exe"), Path.of(dir, "k6"))));
-        return candidatos.anyMatch(Files::isRegularFile);
     }
 }

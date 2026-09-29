@@ -1,9 +1,16 @@
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { Badge } from '../../components/Badge'
 import { AvisoProjeto } from '../../components/Estado'
 import { Gauge } from '../../components/Gauge'
 import { fmtDuracao, fmtPct, plural } from '../../lib/formato'
-import { useResumo, type ExecucaoResumo, type ResumoProjeto } from '../execucoes/api'
+import {
+  useCancelarExecucao,
+  useEmAndamento,
+  useIniciarExecucao,
+  useResumo,
+  type ExecucaoResumo,
+  type ResumoProjeto,
+} from '../execucoes/api'
 import { useProjetoAtual } from '../projetos/ProjetoAtual'
 import type { ScriptExecucao } from '../projetos/api'
 
@@ -12,6 +19,10 @@ import type { ScriptExecucao } from '../projetos/api'
 export function VisaoGeralPage() {
   const { id, detalhe } = useProjetoAtual()
   const { data: resumo } = useResumo(id)
+  const { data: emAndamento } = useEmAndamento()
+  const executar = useIniciarExecucao()
+  const cancelar = useCancelarExecucao()
+  const navigate = useNavigate()
   const scripts = detalhe.data?.scripts ?? []
 
   const mes = resumo ? new Date(`${resumo.mes}-02`).toLocaleDateString('pt-BR', { month: 'long' }) : ''
@@ -21,7 +32,7 @@ export function VisaoGeralPage() {
     <>
       <header className="page-head">
         <h1>Visão geral</h1>
-        <PillSuite ultima={resumo?.ultimaExecucao ?? null} />
+        {emAndamento ? <span className="pill warn">Executando…</span> : <PillSuite ultima={resumo?.ultimaExecucao ?? null} />}
       </header>
       <AvisoProjeto />
 
@@ -79,8 +90,33 @@ export function VisaoGeralPage() {
       <section className="rows" aria-label="Execuções rápidas">
         {detalhe.isPending && <div className="card empty">Carregando scripts…</div>}
         {detalhe.data && scripts.length === 0 && <div className="card empty">Nenhum script de execução no package.json.</div>}
+        {executar.error && (
+          <div className="note" role="alert" style={{ color: 'var(--red)' }}>
+            {executar.error.message}
+          </div>
+        )}
         {scripts.map((s) => (
-          <LinhaScript key={s.nome} script={s} ultima={resumo?.ultimaPorScript[s.nome]} />
+          <LinhaScript
+            key={s.nome}
+            script={s}
+            ultima={resumo?.ultimaPorScript[s.nome]}
+            rodando={emAndamento?.projetoId === id && emAndamento.script === s.nome}
+            bloqueado={!!emAndamento || executar.isPending || !detalhe.data?.instalado}
+            onExecutar={() =>
+              executar.mutate(
+                {
+                  projeto: id,
+                  script: s.nome,
+                  specs: s.specs,
+                  navegador: detalhe.data?.tipo === 'K6' ? null : (s.navegador ?? detalhe.data?.navegadores[0] ?? null),
+                  retentativas: 0,
+                  abrirNavegador: false,
+                },
+                { onSuccess: () => navigate('/execucoes') }, // leva ao console ao vivo
+              )
+            }
+            onCancelar={() => emAndamento && cancelar.mutate(emAndamento.id)}
+          />
         ))}
       </section>
     </>
@@ -118,9 +154,20 @@ function FalhasPorModulo({ resumo }: { resumo?: ResumoProjeto }) {
   )
 }
 
-function LinhaScript({ script, ultima }: { script: ScriptExecucao; ultima?: ExecucaoResumo }) {
+type LinhaScriptProps = {
+  script: ScriptExecucao
+  ultima?: ExecucaoResumo
+  rodando: boolean
+  bloqueado: boolean
+  onExecutar: () => void
+  onCancelar: () => void
+}
+
+function LinhaScript({ script, ultima, rodando, bloqueado, onExecutar, onCancelar }: LinhaScriptProps) {
   const n = script.specs.length
-  const badge = !ultima ? (
+  const badge = rodando ? (
+    <Badge tom="warn">Executando</Badge>
+  ) : !ultima ? (
     <Badge tom="idle">Nunca executado</Badge>
   ) : ultima.status === 'PASSOU' ? (
     <Badge tom="ok">Passou</Badge>
@@ -137,17 +184,25 @@ function LinhaScript({ script, ultima }: { script: ScriptExecucao; ultima?: Exec
           {plural(n, 'spec', 'specs')}
           {ultima && ` · ${fmtDuracao(ultima.duracaoMs)}`}
         </span>
-        {ultima && (
+        {ultima && !rodando && (
           <Link className="btn ghost sm" to={`/execucoes/${ultima.id}`}>
             ver
           </Link>
         )}
         {badge}
-        <button className="play" disabled aria-label={`Executar ${script.nome}`} title="A execução pelo painel chega na etapa 4">
-          <svg viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        </button>
+        {rodando ? (
+          <button className="play stop" type="button" onClick={onCancelar} aria-label="Cancelar execução">
+            <svg viewBox="0 0 24 24">
+              <rect x="6" y="6" width="12" height="12" rx="2" />
+            </svg>
+          </button>
+        ) : (
+          <button className="play" type="button" onClick={onExecutar} disabled={bloqueado} aria-label={`Executar ${script.nome}`}>
+            <svg viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   )

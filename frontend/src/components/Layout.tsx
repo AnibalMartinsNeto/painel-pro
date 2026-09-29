@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router'
+import { useEmAndamento } from '../features/execucoes/api'
 import { useProjetoAtual } from '../features/projetos/ProjetoAtual'
 import { ApiStatus } from './ApiStatus'
 import { Funcionalidades } from './Funcionalidades'
@@ -18,6 +19,7 @@ const NAV = [
  */
 export function Layout() {
   const { pathname } = useLocation()
+  const { data: emAndamento } = useEmAndamento()
 
   return (
     <div className="shell">
@@ -37,6 +39,7 @@ export function Layout() {
               {NAV.map((item) => (
                 <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => (isActive ? 'active' : undefined)}>
                   {item.label}
+                  {item.to === '/execucoes' && emAndamento && <span className="nav-live" title="Execução em andamento" />}
                 </NavLink>
               ))}
             </nav>

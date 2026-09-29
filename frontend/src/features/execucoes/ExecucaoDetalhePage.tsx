@@ -32,7 +32,12 @@ export function ExecucaoDetalhePage() {
             {e.importada && ' · importada do painel Node'}
           </p>
         </div>
-        <StatusBadge status={e.status} />
+        <div className="btn-row">
+          <a className="btn sm" href={`/api/execucoes/${e.id}/log.txt`} target="_blank" rel="noopener">
+            Ver log completo
+          </a>
+          <StatusBadge status={e.status} />
+        </div>
       </header>
 
       <div className="stat-strip">

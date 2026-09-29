@@ -13,7 +13,7 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
 1. ✅ **Ambiente:** Java 21, WSL2, Docker Desktop.
 2. ✅ **Backend base:** camadas Controller → Service → Repository, DTOs, erros no formato Problem Details e testes.
 3. ✅ **Banco:** PostgreSQL no Docker, migrações com Flyway, entidades JPA, importação do histórico do painel Node e testes com Testcontainers.
-4. ⬜ **Execução dos testes:** o backend dispara Cypress, Playwright e k6, grava os resultados e transmite o log ao vivo.
+4. ✅ **Execução dos testes:** o backend dispara Cypress, Playwright e k6 (padrão Strategy), transmite o log ao vivo por SSE, grava resultados e log no banco, cancela a árvore de processos e aceita uma execução por vez (409).
 5. 🟨 **Frontend:** a base está pronta (rotas, cliente de API, telas de projetos, testes). As telas crescem junto com cada etapa.
 6. ⬜ **Integrações e qualidade:** triagem com IA, Azure DevOps e testes do próprio painel.
 
@@ -70,8 +70,30 @@ cd backend
 | `GET /api/execucoes?projeto=cypress` | Últimas 50 execuções do projeto |
 | `GET /api/execucoes/resumo?projeto=cypress` | Números da Visão geral (mês, aprovação, falhas por módulo) |
 | `GET /api/execucoes/{id}` | Execução com todos os resultados de teste |
+| `POST /api/execucoes` | Dispara uma execução → 202; 400 se inválida; 409 se já houver uma rodando |
+| `GET /api/execucoes/em-andamento` | Execução rodando agora, ou 204 |
+| `GET /api/execucoes/{id}/log` | Log ao vivo (Server-Sent Events) |
+| `GET /api/execucoes/{id}/log.txt` | Log completo gravado |
+| `POST /api/execucoes/{id}/cancelar` | Interrompe a execução (mata os processos filhos) |
 | `POST /api/importacoes/painel-node` | Importa o histórico de `Painel/data/runs` (idempotente) |
 | `GET /actuator/health` | Saúde da aplicação |
+
+### Como uma execução acontece
+
+```
+POST /api/execucoes ─► OrquestradorExecucao.iniciar()
+                          │ valida (specs existem? navegador suportado? já há execução?)
+                          │ grava EM_ANDAMENTO e responde 202 na hora
+                          ▼  thread "execucao-testes"
+                 ExecutorFerramenta (Strategy)
+        CypressExecutor │ PlaywrightExecutor │ K6Executor
+                          │ etapas(): quais processos iniciar
+                          ▼
+                 ProcessBuilder → saída linha a linha ─► LogAoVivo ─SSE─► console da tela
+                          │
+                          ▼ ler(): relatório JSON da ferramenta → ResultadoTeste
+                 ExecucaoGravacao.concluir() → status, resultados e log no PostgreSQL
+```
 
 ### Banco de dados
 

@@ -56,6 +56,8 @@ public class Execucao {
     @Column(unique = true)
     private String origem;
 
+    private String log;
+
     // Um-para-muitos: uma execução tem vários resultados. cascade=ALL faz o
     // save da execução salvar também os resultados; orphanRemoval apaga o
     // resultado removido da lista.
@@ -110,6 +112,12 @@ public class Execucao {
         this.origem = origem;
     }
 
+    /** Limite de ~1 milhão de caracteres: guarda o FIM do log, onde ficam o resumo e os erros. */
+    public void registrarLog(String log) {
+        int limite = 1_000_000;
+        this.log = log == null || log.length() <= limite ? log : "[... início do log omitido ...]\n" + log.substring(log.length() - limite);
+    }
+
     public Long getId() { return id; }
     public String getProjetoId() { return projetoId; }
     public String getScript() { return script; }
@@ -125,5 +133,6 @@ public class Execucao {
     public String getVersaoFerramenta() { return versaoFerramenta; }
     public String getErro() { return erro; }
     public String getOrigem() { return origem; }
+    public String getLog() { return log; }
     public List<ResultadoTeste> getResultados() { return Collections.unmodifiableList(resultados); }
 }

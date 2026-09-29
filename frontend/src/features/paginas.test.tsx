@@ -57,8 +57,16 @@ beforeEach(() => {
       ],
     },
     '/api/importacoes/painel-node': { importadas: 5, ignoradas: 0, erros: [] },
+    '/api/execucoes/em-andamento': [204, null],
+    '/api/execucoes': { ...execucao, id: 8, status: 'EM_ANDAMENTO' },
   })
 })
+
+/** Corpo JSON enviado na chamada ao endpoint (o fetch falso guarda os argumentos). */
+function corpoEnviado(url: string) {
+  const chamada = fetchFalso.mock.calls.find(([u]) => u === url) as unknown as [string, RequestInit] | undefined
+  return chamada ? JSON.parse(String(chamada[1].body)) : undefined
+}
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Visão geral', () => {
@@ -136,6 +144,56 @@ describe('Execuções', () => {
     expect(screen.getByText('AssertionError: imagens duplicadas')).toBeInTheDocument()
     expect(screen.getByText('Asserção')).toBeInTheDocument()
     expect(screen.getByText('1 falha')).toBeInTheDocument()
+  })
+
+  it('"Executar selecionados" envia o POST com os specs, o script e o navegador', async () => {
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/execucoes' })
+
+    await user.click(await screen.findByRole('button', { name: 'test:diagnostics' }))
+    await user.selectOptions(screen.getByLabelText('Navegador'), 'chrome')
+    await user.click(screen.getByRole('button', { name: /Executar selecionados/ }))
+
+    await vi.waitFor(() =>
+      expect(corpoEnviado('/api/execucoes')).toEqual({
+        projeto: 'cypress',
+        script: 'test:diagnostics',
+        specs: ['cypress/e2e/user-behavior-matrix.cy.js'],
+        navegador: 'chrome',
+        retentativas: 0,
+        abrirNavegador: false,
+      }),
+    )
+  })
+
+  it('mexer num spec depois de escolher um script vira seleção manual (script null)', async () => {
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/execucoes' })
+
+    await user.click(await screen.findByRole('button', { name: 'test' }))
+    await user.click(screen.getByRole('checkbox', { name: /user-behavior-matrix/ }))
+    await user.click(screen.getByRole('button', { name: /Executar selecionados/ }))
+
+    await vi.waitFor(() => expect(corpoEnviado('/api/execucoes')?.script).toBeNull())
+    expect(corpoEnviado('/api/execucoes').specs).toHaveLength(3)
+  })
+
+  it('mostra a mensagem do backend quando já há execução rodando (409)', async () => {
+    apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/resumo?projeto=cypress': resumo,
+      '/api/execucoes?projeto=cypress': [],
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/execucoes': [409, { status: 409, title: 'Conflito', detail: 'Já existe uma execução em andamento.' }],
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/execucoes' })
+
+    await user.click(await screen.findByRole('button', { name: /Executar selecionados/ }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Já existe uma execução em andamento.')
   })
 
   it('"limpar" desmarca tudo e pede ao menos um spec', async () => {

@@ -30,6 +30,7 @@ export function apiFalsa(rotas: Record<string, unknown>) {
     const resposta = rotas[url]
     const [status, corpo] = resposta === undefined ? [404, { status: 404, detail: `sem mock para ${url}` }]
       : Array.isArray(resposta) && typeof resposta[0] === 'number' ? resposta : [200, resposta]
+    if (status === 204) return Promise.resolve(new Response(null, { status }))
     return Promise.resolve(new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } }))
   })
   vi.stubGlobal('fetch', fetchFalso)

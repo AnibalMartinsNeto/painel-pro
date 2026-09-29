@@ -43,5 +43,7 @@ async function requisitar<T>(method: string, path: string, corpo?: unknown): Pro
     const problem = (await res.json().catch(() => undefined)) as ProblemDetail | undefined
     throw new ApiError(res.status, problem?.detail ?? `Erro ${res.status} ao chamar ${path}`, problem)
   }
+  // 204 No Content (e 202 sem corpo): não há JSON para ler.
+  if (res.status === 204 || res.headers.get('content-length') === '0') return null as T
   return (await res.json()) as T
 }

@@ -29,6 +29,8 @@ public interface ExecucaoRepository extends JpaRepository<Execucao, Long> {
 
     boolean existsByOrigem(String origem);
 
+    List<Execucao> findByStatus(StatusExecucao status);
+
     /** Execução com os resultados, numa única consulta (JOIN FETCH evita o problema N+1). */
     @Query("select e from Execucao e left join fetch e.resultados where e.id = :id")
     Optional<Execucao> buscarComResultados(@Param("id") Long id);
