@@ -43,7 +43,7 @@ management:
         include: health,info
 
 # Projetos de teste que o painel conhece. Os diretórios são relativos à
-# pasta de onde o backend é executado (PainelPro/backend) e podem ser
+# pasta de onde o backend é executado (painel-pro/backend) e podem ser
 # sobrescritos por variável de ambiente, ex.: PAINEL_PROJETOS_0_DIRETORIO.
 painel:
   projetos:

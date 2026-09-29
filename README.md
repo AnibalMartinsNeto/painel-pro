@@ -38,7 +38,7 @@ O Docker Desktop pede o WSL2 e uma reinicialização na primeira vez.
 
 ```
 QA_Estudos/
-├── PainelPro/      ← git clone https://github.com/AnibalMartinsNeto/painel-pro.git PainelPro
+├── painel-pro/     ← git clone https://github.com/AnibalMartinsNeto/painel-pro.git
 └── serverest-qa/   ← git clone https://github.com/AnibalMartinsNeto/serverest-qa.git
 ```
 
