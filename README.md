@@ -16,9 +16,9 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
 4. ✅ **Execução dos testes:** o backend dispara Cypress, Playwright e k6 (padrão Strategy), transmite o log ao vivo por SSE, grava resultados e log no banco, cancela a árvore de processos e aceita uma execução por vez (409).
 5. 🟨 **Frontend:** a base está pronta (rotas, cliente de API, telas de projetos, testes). As telas crescem junto com cada etapa.
 6. 🟨 **Integrações e qualidade:**
-   - ✅ Configurações e segredos (AES-256-GCM, chave-mestra fora do banco)
+   - ✅ Configurações e segredos (AES-256-GCM, chave-mestra fora do banco), com Jira no lugar do Azure DevOps
    - ⬜ Triagem com IA
-   - ⬜ Azure DevOps
+   - ⬜ Jira (configuração e teste de conexão prontos; falta publicar bugs)
    - ⬜ Relatórios, screenshots, falha nova × recorrente
    - ⬜ CI no GitHub Actions
 
@@ -102,7 +102,7 @@ POST /api/execucoes ─► OrquestradorExecucao.iniciar()
 
 ### Configurações e segredos
 
-`GET/PUT /api/configuracoes` guarda ambiente, IA e Azure DevOps na tabela `configuracao`. Chaves de API e PAT são:
+`GET/PUT /api/configuracoes` guarda ambiente, IA e Jira na tabela `configuracao`. Chaves de API e o token do Jira são:
 
 - **criptografados** com AES-256-GCM antes de ir para o banco (`v1:<base64>`);
 - **somente escrita** pela API: o GET diz só se estão configurados, nunca devolve o valor;

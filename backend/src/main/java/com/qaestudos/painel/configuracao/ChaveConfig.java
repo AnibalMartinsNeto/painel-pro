@@ -12,10 +12,11 @@ public enum ChaveConfig {
     IA_ANTHROPIC_MODELO("ia.anthropic.modelo", false, "claude-sonnet-5"),
     IA_GEMINI_CHAVE("ia.gemini.chave", true, null),
     IA_GEMINI_MODELO("ia.gemini.modelo", false, "gemini-flash-latest"),
-    AZURE_ORGANIZACAO("azure.organizacao", false, null),
-    AZURE_PROJETO("azure.projeto", false, null),
-    AZURE_AREA_PATH("azure.area-path", false, null),
-    AZURE_PAT("azure.pat", true, null);
+    JIRA_URL("jira.url", false, null),                // https://empresa.atlassian.net
+    JIRA_EMAIL("jira.email", false, null),            // conta Atlassian dona do token
+    JIRA_TOKEN("jira.token", true, null),             // API token (id.atlassian.com)
+    JIRA_PROJETO("jira.projeto", false, null),        // chave do projeto, ex.: QA
+    JIRA_TIPO_ISSUE("jira.tipo-issue", false, "Bug"); // tipo das issues criadas
 
     private final String chave;
     private final boolean secreto;

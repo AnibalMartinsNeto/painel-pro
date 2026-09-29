@@ -66,7 +66,7 @@ beforeEach(() => {
 const configuracoes = {
   ambiente: 'Homologação',
   ia: { provedor: 'gemini', modeloAnthropic: 'claude-sonnet-5', modeloGemini: 'gemini-flash-latest', anthropicConfigurada: false, geminiConfigurada: true, ativa: true },
-  azure: { organizacao: null, projeto: null, areaPath: null, patConfigurado: false, configurado: false },
+  jira: { url: null, email: null, projeto: null, tipoIssue: 'Bug', tokenConfigurado: false, configurado: false },
 }
 
 /** Corpo JSON enviado na chamada ao endpoint (o fetch falso guarda os argumentos). */
@@ -119,18 +119,39 @@ describe('Configurações', () => {
     expect(screen.getByText('Gemini ativo')).toBeInTheDocument() // barra lateral
   })
 
-  it('salvar envia PUT com a chave digitada e os campos do Azure', async () => {
+  it('salvar envia PUT com a chave digitada e os campos do Jira', async () => {
     const user = userEvent.setup()
     renderComApp(<App />, { rota: '/configuracoes' })
 
     await user.type(await screen.findByLabelText(/Chave da API Gemini/), 'AQ.nova')
-    await user.type(screen.getByLabelText('Organização'), 'minha-org')
+    await user.type(screen.getByLabelText('URL do Jira'), 'https://empresa.atlassian.net')
     await user.click(screen.getByRole('button', { name: 'Salvar configurações' }))
 
     await vi.waitFor(() => expect(corpoEnviado('/api/configuracoes')).toBeDefined())
     const corpo = corpoEnviado('/api/configuracoes')
     expect(corpo.ia).toMatchObject({ provedor: 'gemini', chaveGemini: 'AQ.nova' })
-    expect(corpo.azure).toMatchObject({ organizacao: 'minha-org', pat: '' }) // PAT em branco = manter
+    expect(corpo.jira).toMatchObject({ url: 'https://empresa.atlassian.net', token: '' }) // token em branco = manter
+  })
+
+  it('"Testar conexão" mostra o usuário e o projeto retornados pelo Jira', async () => {
+    apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': {
+        ...configuracoes,
+        jira: { url: 'https://empresa.atlassian.net', email: 'qa@empresa.com', projeto: 'QA', tipoIssue: 'Bug', tokenConfigurado: true, configurado: true },
+      },
+      '/api/configuracoes/jira/testar': { usuario: 'Aníbal', email: 'qa@empresa.com', projeto: 'QA', nomeProjeto: 'Qualidade' },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/configuracoes' })
+
+    await user.click(await screen.findByRole('button', { name: 'Testar conexão' }))
+
+    expect(await screen.findByText(/Conectado como Aníbal ao projeto QA \(Qualidade\)/)).toBeInTheDocument()
+    expect(screen.getByText('Projeto QA')).toBeInTheDocument() // barra lateral
   })
 
   it('"Remover chave" pede a remoção explícita do segredo', async () => {

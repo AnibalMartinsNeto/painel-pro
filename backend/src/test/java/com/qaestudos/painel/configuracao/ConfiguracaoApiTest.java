@@ -30,7 +30,7 @@ class ConfiguracaoApiTest {
     void segredoEntraPeloPutMasNuncaSaiPeloGet() {
         var put = mvc.put().uri("/api/configuracoes").contentType(MediaType.APPLICATION_JSON).content("""
                 {"ambiente":"QA","ia":{"provedor":"gemini","chaveGemini":"%s"},
-                 "azure":{"organizacao":"org","projeto":"proj","pat":"pat-secreto"}}
+                 "jira":{"url":"https://empresa.atlassian.net/","email":"qa@empresa.com","projeto":"qa","token":"pat-secreto"}}
                 """.formatted(SEGREDO));
 
         assertThat(put).hasStatusOk()
@@ -38,7 +38,7 @@ class ConfiguracaoApiTest {
                 .isLenientlyEqualTo("""
                         {"ambiente":"QA",
                          "ia":{"provedor":"gemini","geminiConfigurada":true,"ativa":true},
-                         "azure":{"organizacao":"org","projeto":"proj","patConfigurado":true,"configurado":true}}
+                         "jira":{"url":"https://empresa.atlassian.net","projeto":"QA","tipoIssue":"Bug","tokenConfigurado":true,"configurado":true}}
                         """);
         assertThat(put).body().asString().doesNotContain(SEGREDO).doesNotContain("pat-secreto");
 

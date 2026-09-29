@@ -3,7 +3,7 @@ import { Layout } from './components/Layout'
 import { ConfiguracoesPage } from './features/configuracoes/ConfiguracoesPage'
 import { ExecucaoDetalhePage } from './features/execucoes/ExecucaoDetalhePage'
 import { ExecucoesPage } from './features/execucoes/ExecucoesPage'
-import { AzurePage, RelatoriosPage, TriagemPage } from './features/outras/OutrasPaginas'
+import { JiraPage, RelatoriosPage, TriagemPage } from './features/outras/OutrasPaginas'
 import { ProjetoAtualProvider } from './features/projetos/ProjetoAtual'
 import { VisaoGeralPage } from './features/visao-geral/VisaoGeralPage'
 
@@ -21,7 +21,7 @@ export function App() {
           <Route path="execucoes" element={<ExecucoesPage />} />
           <Route path="execucoes/:id" element={<ExecucaoDetalhePage />} />
           <Route path="triagem" element={<TriagemPage />} />
-          <Route path="azure" element={<AzurePage />} />
+          <Route path="jira" element={<JiraPage />} />
           <Route path="relatorios" element={<RelatoriosPage />} />
           <Route path="configuracoes" element={<ConfiguracoesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

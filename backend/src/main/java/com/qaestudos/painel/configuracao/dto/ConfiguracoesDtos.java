@@ -14,21 +14,21 @@ public final class ConfiguracoesDtos {
 
     private ConfiguracoesDtos() {}
 
-    public record ConfiguracoesResponse(String ambiente, IaResponse ia, AzureResponse azure) {}
+    public record ConfiguracoesResponse(String ambiente, IaResponse ia, JiraResponse jira) {}
 
     public record IaResponse(
             String provedor, String modeloAnthropic, String modeloGemini,
             boolean anthropicConfigurada, boolean geminiConfigurada,
             boolean ativa) {} // o provedor escolhido tem chave?
 
-    public record AzureResponse(String organizacao, String projeto, String areaPath, boolean patConfigurado, boolean configurado) {}
+    public record JiraResponse(String url, String email, String projeto, String tipoIssue, boolean tokenConfigurado, boolean configurado) {}
 
     /**
      * Pedido de atualização. Campos {@code null} não mudam nada. Em campos
      * comuns, texto vazio apaga; em SEGREDOS, vazio é ignorado (para apagar
      * um segredo, informe a chave em {@code remover}).
      */
-    public record AtualizarConfiguracoesRequest(String ambiente, IaRequest ia, AzureRequest azure, List<String> remover) {}
+    public record AtualizarConfiguracoesRequest(String ambiente, IaRequest ia, JiraRequest jira, List<String> remover) {}
 
     public record IaRequest(String provedor, String modeloAnthropic, String modeloGemini, String chaveAnthropic, String chaveGemini) {
         @Override
@@ -38,10 +38,10 @@ public final class ConfiguracoesDtos {
         }
     }
 
-    public record AzureRequest(String organizacao, String projeto, String areaPath, String pat) {
+    public record JiraRequest(String url, String email, String projeto, String tipoIssue, String token) {
         @Override
         public String toString() {
-            return "AzureRequest[organizacao=%s, projeto=%s, areaPath=%s, pat=%s]".formatted(organizacao, projeto, areaPath, mascarar(pat));
+            return "JiraRequest[url=%s, email=%s, projeto=%s, tipoIssue=%s, token=%s]".formatted(url, email, projeto, tipoIssue, mascarar(token));
         }
     }
 

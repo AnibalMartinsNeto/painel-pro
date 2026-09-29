@@ -64,7 +64,7 @@ export function VisaoGeralPage() {
         </article>
         <article className="card kpi">
           <div className="accent gray" />
-          <span className="eyebrow">Itens no Azure</span>
+          <span className="eyebrow">Issues no Jira</span>
           <div>
             <div className="kpi-value">0</div>
             <div className="kpi-sub">bugs publicados pelo painel</div>

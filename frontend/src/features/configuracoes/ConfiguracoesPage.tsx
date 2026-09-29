@@ -1,7 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Badge } from '../../components/Badge'
 import { Carregando, ErroApi } from '../../components/Estado'
-import { useConfiguracoes, useImportarConfiguracoes, useSalvarConfiguracoes, type Configuracoes, type ProvedorIa } from './api'
+import {
+  useConfiguracoes,
+  useImportarConfiguracoes,
+  useSalvarConfiguracoes,
+  useTestarJira,
+  type Configuracoes,
+  type ProvedorIa,
+} from './api'
 
 export function ConfiguracoesPage() {
   const { data, isPending, error } = useConfiguracoes()
@@ -12,7 +19,7 @@ export function ConfiguracoesPage() {
       <header className="page-head">
         <div>
           <h1>Configurações</h1>
-          <p>Ambiente, inteligência artificial e Azure DevOps. Segredos são gravados criptografados e nunca voltam para o navegador.</p>
+          <p>Ambiente, inteligência artificial e Jira. Segredos são gravados criptografados e nunca voltam para o navegador.</p>
         </div>
         <div className="btn-row">
           {importar.data && (
@@ -61,17 +68,19 @@ function Formulario({ config }: { config: Configuracoes }) {
   const [modeloAnthropic, setModeloAnthropic] = useState(config.ia.modeloAnthropic ?? '')
   const [chaveGemini, setChaveGemini] = useState('')
   const [chaveAnthropic, setChaveAnthropic] = useState('')
-  const [org, setOrg] = useState(config.azure.organizacao ?? '')
-  const [projeto, setProjeto] = useState(config.azure.projeto ?? '')
-  const [areaPath, setAreaPath] = useState(config.azure.areaPath ?? '')
-  const [pat, setPat] = useState('')
+  const [jiraUrl, setJiraUrl] = useState(config.jira.url ?? '')
+  const [jiraEmail, setJiraEmail] = useState(config.jira.email ?? '')
+  const [jiraProjeto, setJiraProjeto] = useState(config.jira.projeto ?? '')
+  const [jiraTipo, setJiraTipo] = useState(config.jira.tipoIssue ?? 'Bug')
+  const [jiraToken, setJiraToken] = useState('')
+  const testarJira = useTestarJira()
 
   const enviar = (e: FormEvent) => {
     e.preventDefault()
     salvar.mutate({
       ambiente,
       ia: { provedor, modeloGemini, modeloAnthropic, chaveGemini, chaveAnthropic },
-      azure: { organizacao: org, projeto, areaPath, pat },
+      jira: { url: jiraUrl, email: jiraEmail, projeto: jiraProjeto, tipoIssue: jiraTipo, token: jiraToken },
     })
   }
   const removerSegredo = (chave: string) => salvar.mutate({ remover: [chave] })
@@ -133,31 +142,51 @@ function Formulario({ config }: { config: Configuracoes }) {
 
       <section className="card">
         <div className="card-head">
-          <span className="eyebrow">Azure DevOps</span>
-          {config.azure.configurado ? <Badge tom="ok">Configurado</Badge> : <Badge tom="idle">Não configurado</Badge>}
+          <span className="eyebrow">Jira</span>
+          {config.jira.configurado ? <Badge tom="ok">Configurado</Badge> : <Badge tom="idle">Não configurado</Badge>}
         </div>
         <div className="form-grid">
           <div className="field">
-            <label htmlFor="cfgOrg">Organização</label>
-            <input id="cfgOrg" className="input" placeholder="minha-empresa" value={org} onChange={(e) => setOrg(e.target.value)} />
+            <label htmlFor="cfgJiraUrl">URL do Jira</label>
+            <input id="cfgJiraUrl" className="input" placeholder="https://empresa.atlassian.net" value={jiraUrl} onChange={(e) => setJiraUrl(e.target.value)} />
           </div>
           <div className="field">
-            <label htmlFor="cfgProjeto">Projeto</label>
-            <input id="cfgProjeto" className="input" placeholder="ERP" value={projeto} onChange={(e) => setProjeto(e.target.value)} />
+            <label htmlFor="cfgJiraEmail">E-mail da conta Atlassian</label>
+            <input id="cfgJiraEmail" className="input" type="email" placeholder="voce@empresa.com" value={jiraEmail} onChange={(e) => setJiraEmail(e.target.value)} />
           </div>
-          <CampoSegredo id="cfgPat" rotulo="Personal Access Token" configurado={config.azure.patConfigurado} valor={pat} onChange={setPat} placeholder="escopo: Work Items (Read & Write)" />
+          <CampoSegredo id="cfgJiraToken" rotulo="API token" configurado={config.jira.tokenConfigurado} valor={jiraToken} onChange={setJiraToken} placeholder="ATATT3x… (id.atlassian.com → Security → API tokens)" />
           <div className="field">
-            <label htmlFor="cfgArea">
-              Area Path <span className="hint">(opcional)</span>
-            </label>
-            <input id="cfgArea" className="input" placeholder="ERP\QA" value={areaPath} onChange={(e) => setAreaPath(e.target.value)} />
+            <label htmlFor="cfgJiraProjeto">Chave do projeto</label>
+            <input id="cfgJiraProjeto" className="input" placeholder="QA (prefixo das issues, ex.: QA-123)" value={jiraProjeto} onChange={(e) => setJiraProjeto(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="cfgJiraTipo">Tipo das issues criadas</label>
+            <input id="cfgJiraTipo" className="input" value={jiraTipo} onChange={(e) => setJiraTipo(e.target.value)} />
           </div>
         </div>
-        {config.azure.patConfigurado && (
-          <button className="btn ghost sm" type="button" style={{ marginTop: 10 }} onClick={() => removerSegredo('azure.pat')}>
-            Remover PAT
+        <p className="hint" style={{ margin: '10px 0 0' }}>
+          O Jira autentica com <b>e-mail + token juntos</b>. Salve antes de testar a conexão.
+        </p>
+        <div className="btn-row" style={{ marginTop: 10 }}>
+          <button className="btn sm" type="button" onClick={() => testarJira.mutate()} disabled={testarJira.isPending || !config.jira.configurado}>
+            {testarJira.isPending ? 'Testando…' : 'Testar conexão'}
           </button>
-        )}
+          {config.jira.tokenConfigurado && (
+            <button className="btn ghost sm" type="button" onClick={() => removerSegredo('jira.token')}>
+              Remover token
+            </button>
+          )}
+          {testarJira.data && (
+            <span className="hint" role="status" style={{ color: 'var(--green)' }}>
+              Conectado como {testarJira.data.usuario} ao projeto {testarJira.data.projeto} ({testarJira.data.nomeProjeto})
+            </span>
+          )}
+          {testarJira.error && (
+            <span className="hint" role="alert" style={{ color: 'var(--red)' }}>
+              {testarJira.error.message}
+            </span>
+          )}
+        </div>
       </section>
 
       <div className="btn-row">

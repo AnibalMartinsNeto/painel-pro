@@ -57,6 +57,17 @@ public class ConfiguracaoService {
         if (chave == ChaveConfig.IA_PROVEDOR && !PROVEDORES_IA.contains(limpo)) {
             throw new RequisicaoInvalidaException("Provedor de IA inválido: '%s'. Use gemini ou anthropic.".formatted(limpo));
         }
+        if (chave == ChaveConfig.JIRA_URL) {
+            // Token em texto claro só trafega por HTTPS; e sem a barra final
+            // para montar "url + /rest/api/3/..." sem barra dupla.
+            if (!limpo.startsWith("https://")) {
+                throw new RequisicaoInvalidaException("A URL do Jira deve começar com https:// (ex.: https://empresa.atlassian.net).");
+            }
+            limpo = limpo.replaceAll("/+$", "");
+        }
+        if (chave == ChaveConfig.JIRA_PROJETO) {
+            limpo = limpo.toUpperCase(java.util.Locale.ROOT); // chaves de projeto do Jira são maiúsculas
+        }
         String armazenado = chave.secreto() ? cifrador.cifrar(limpo) : limpo;
         repository.findById(chave.chave()).ifPresentOrElse(
                 c -> c.atualizar(armazenado, chave.secreto(), clock.instant()),

@@ -15,19 +15,27 @@ export interface Configuracoes {
     geminiConfigurada: boolean
     ativa: boolean
   }
-  azure: {
-    organizacao: string | null
+  jira: {
+    url: string | null
+    email: string | null
     projeto: string | null
-    areaPath: string | null
-    patConfigurado: boolean
+    tipoIssue: string | null
+    tokenConfigurado: boolean
     configurado: boolean
   }
+}
+
+export interface TesteConexaoJira {
+  usuario: string
+  email: string
+  projeto: string
+  nomeProjeto: string
 }
 
 export interface AtualizarConfiguracoes {
   ambiente?: string
   ia?: { provedor?: string; modeloAnthropic?: string; modeloGemini?: string; chaveAnthropic?: string; chaveGemini?: string }
-  azure?: { organizacao?: string; projeto?: string; areaPath?: string; pat?: string }
+  jira?: { url?: string; email?: string; projeto?: string; tipoIssue?: string; token?: string }
   remover?: string[]
 }
 
@@ -44,6 +52,11 @@ export function useSalvarConfiguracoes() {
     // O PUT já devolve o estado novo: grava direto no cache, sem outra ida à API.
     onSuccess: (novo) => queryClient.setQueryData(CHAVE, novo),
   })
+}
+
+/** Chama o Jira de verdade (pelo backend) para validar e-mail, token e projeto. */
+export function useTestarJira() {
+  return useMutation({ mutationFn: () => apiPost<TesteConexaoJira>('/api/configuracoes/jira/testar') })
 }
 
 export function useImportarConfiguracoes() {

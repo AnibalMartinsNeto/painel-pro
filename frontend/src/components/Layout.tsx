@@ -9,7 +9,7 @@ const NAV = [
   { to: '/', label: 'Visão geral' },
   { to: '/execucoes', label: 'Execuções' },
   { to: '/triagem', label: 'Triagem IA' },
-  { to: '/azure', label: 'Azure DevOps' },
+  { to: '/jira', label: 'Jira' },
   { to: '/relatorios', label: 'Relatórios' },
   { to: '/configuracoes', label: 'Configurações' },
 ]
@@ -94,10 +94,10 @@ function StatusLateral() {
       </div>
       <ApiStatus />
       <div>
-        <span className="side-label">Azure DevOps</span>
-        <div className={`status-line ${config?.azure.configurado ? '' : 'off'}`}>
+        <span className="side-label">Jira</span>
+        <div className={`status-line ${config?.jira.configurado ? '' : 'off'}`}>
           <span className="dot" aria-hidden="true" />
-          <span>{config?.azure.configurado ? 'Configurado' : 'Não configurado'}</span>
+          <span>{config?.jira.configurado ? `Projeto ${config.jira.projeto}` : 'Não configurado'}</span>
         </div>
       </div>
       <div>

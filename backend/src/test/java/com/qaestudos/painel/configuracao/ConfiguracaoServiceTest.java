@@ -56,29 +56,29 @@ class ConfiguracaoServiceTest {
 
     @Test
     void valorComumFicaEmTextoPuro() {
-        service.definir(ChaveConfig.AZURE_ORGANIZACAO, "minha-empresa");
-        assertThat(valorCruNoBanco(ChaveConfig.AZURE_ORGANIZACAO)).isEqualTo("minha-empresa");
+        service.definir(ChaveConfig.JIRA_EMAIL, "qa@empresa.com");
+        assertThat(valorCruNoBanco(ChaveConfig.JIRA_EMAIL)).isEqualTo("qa@empresa.com");
     }
 
     @Test
     void semValorGravadoUsaOPadraoDoCatalogo() {
         assertThat(service.valor(ChaveConfig.IA_GEMINI_MODELO)).contains("gemini-flash-latest");
-        assertThat(service.valor(ChaveConfig.AZURE_PAT)).isEmpty();
-        assertThat(service.configurado(ChaveConfig.AZURE_PAT)).isFalse();
+        assertThat(service.valor(ChaveConfig.JIRA_TOKEN)).isEmpty();
+        assertThat(service.configurado(ChaveConfig.JIRA_TOKEN)).isFalse();
     }
 
     @Test
     void segredoEmBrancoNaoApagaOAtual() {
-        service.definir(ChaveConfig.AZURE_PAT, "pat-original");
-        service.definir(ChaveConfig.AZURE_PAT, "   ");
-        assertThat(service.valor(ChaveConfig.AZURE_PAT)).contains("pat-original");
+        service.definir(ChaveConfig.JIRA_TOKEN, "token-original");
+        service.definir(ChaveConfig.JIRA_TOKEN, "   ");
+        assertThat(service.valor(ChaveConfig.JIRA_TOKEN)).contains("token-original");
     }
 
     @Test
     void removerApagaDeVerdade() {
-        service.definir(ChaveConfig.AZURE_PAT, "pat");
-        service.atualizar(Map.of(), Set.of(ChaveConfig.AZURE_PAT));
-        assertThat(service.configurado(ChaveConfig.AZURE_PAT)).isFalse();
+        service.definir(ChaveConfig.JIRA_TOKEN, "pat");
+        service.atualizar(Map.of(), Set.of(ChaveConfig.JIRA_TOKEN));
+        assertThat(service.configurado(ChaveConfig.JIRA_TOKEN)).isFalse();
     }
 
     @Test
@@ -86,6 +86,21 @@ class ConfiguracaoServiceTest {
         assertThatThrownBy(() -> service.definir(ChaveConfig.IA_PROVEDOR, "chatgpt"))
                 .isInstanceOf(RequisicaoInvalidaException.class)
                 .hasMessageContaining("gemini ou anthropic");
+    }
+
+    @Test
+    void urlDoJiraExigeHttpsEPerdeABarraFinal() {
+        assertThatThrownBy(() -> service.definir(ChaveConfig.JIRA_URL, "http://empresa.atlassian.net"))
+                .hasMessageContaining("https://");
+
+        service.definir(ChaveConfig.JIRA_URL, "https://empresa.atlassian.net//");
+        assertThat(service.valor(ChaveConfig.JIRA_URL)).contains("https://empresa.atlassian.net");
+    }
+
+    @Test
+    void chaveDoProjetoJiraViraMaiuscula() {
+        service.definir(ChaveConfig.JIRA_PROJETO, "qa");
+        assertThat(service.valor(ChaveConfig.JIRA_PROJETO)).contains("QA");
     }
 
     @Test

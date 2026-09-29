@@ -15,8 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Traz as configurações do painel Node (Painel/data/settings.json), onde
- * os segredos estavam em TEXTO PURO, para o banco — agora criptografados.
+ * Traz as configurações de ambiente e IA do painel Node
+ * (Painel/data/settings.json), onde os segredos estavam em TEXTO PURO,
+ * para o banco — agora criptografados.
  * Só importa o que ainda não está configurado aqui (não sobrescreve).
  */
 @Service
@@ -36,10 +37,7 @@ public class ImportadorConfiguracoes {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record SettingsNode(String envName, Azure azure, Ai ai) {}
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record Azure(String org, String project, String pat, String areaPath) {}
+    record SettingsNode(String envName, Ai ai) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Ai(String provider, String apiKey, String model, String geminiKey, String geminiModel) {}
@@ -64,12 +62,7 @@ public class ImportadorConfiguracoes {
             importar(IA_GEMINI_CHAVE, s.ai().geminiKey(), importadas);
             importar(IA_GEMINI_MODELO, s.ai().geminiModel(), importadas);
         }
-        if (s.azure() != null) {
-            importar(AZURE_ORGANIZACAO, s.azure().org(), importadas);
-            importar(AZURE_PROJETO, s.azure().project(), importadas);
-            importar(AZURE_AREA_PATH, s.azure().areaPath(), importadas);
-            importar(AZURE_PAT, s.azure().pat(), importadas);
-        }
+        // O painel Node usava Azure DevOps; o PainelPro usa Jira, então não há o que importar dessa parte.
         return new ImportacaoConfiguracoesResponse(importadas, null);
     }
 
