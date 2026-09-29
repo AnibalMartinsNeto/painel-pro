@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { Layout } from './components/Layout'
+import { ConfiguracoesPage } from './features/configuracoes/ConfiguracoesPage'
 import { ExecucaoDetalhePage } from './features/execucoes/ExecucaoDetalhePage'
 import { ExecucoesPage } from './features/execucoes/ExecucoesPage'
 import { AzurePage, RelatoriosPage, TriagemPage } from './features/outras/OutrasPaginas'
@@ -22,6 +23,7 @@ export function App() {
           <Route path="triagem" element={<TriagemPage />} />
           <Route path="azure" element={<AzurePage />} />
           <Route path="relatorios" element={<RelatoriosPage />} />
+          <Route path="configuracoes" element={<ConfiguracoesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

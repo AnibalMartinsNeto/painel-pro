@@ -26,6 +26,7 @@ export class ApiError extends Error {
 
 export const apiGet = <T>(path: string) => requisitar<T>('GET', path)
 export const apiPost = <T>(path: string, corpo?: unknown) => requisitar<T>('POST', path, corpo)
+export const apiPut = <T>(path: string, corpo?: unknown) => requisitar<T>('PUT', path, corpo)
 
 async function requisitar<T>(method: string, path: string, corpo?: unknown): Promise<T> {
   let res: Response

@@ -59,13 +59,22 @@ beforeEach(() => {
     '/api/importacoes/painel-node': { importadas: 5, ignoradas: 0, erros: [] },
     '/api/execucoes/em-andamento': [204, null],
     '/api/execucoes': { ...execucao, id: 8, status: 'EM_ANDAMENTO' },
+    '/api/configuracoes': configuracoes,
   })
 })
 
+const configuracoes = {
+  ambiente: 'Homologação',
+  ia: { provedor: 'gemini', modeloAnthropic: 'claude-sonnet-5', modeloGemini: 'gemini-flash-latest', anthropicConfigurada: false, geminiConfigurada: true, ativa: true },
+  azure: { organizacao: null, projeto: null, areaPath: null, patConfigurado: false, configurado: false },
+}
+
 /** Corpo JSON enviado na chamada ao endpoint (o fetch falso guarda os argumentos). */
 function corpoEnviado(url: string) {
-  const chamada = fetchFalso.mock.calls.find(([u]) => u === url) as unknown as [string, RequestInit] | undefined
-  return chamada ? JSON.parse(String(chamada[1].body)) : undefined
+  // A mesma URL pode ter GET (sem corpo) e PUT/POST: pega a última chamada COM corpo.
+  const chamadas = fetchFalso.mock.calls as unknown as [string, RequestInit | undefined][]
+  const comCorpo = chamadas.filter(([u, init]) => u === url && init?.body !== undefined).at(-1)
+  return comCorpo ? JSON.parse(String(comCorpo[1]!.body)) : undefined
 }
 afterEach(() => vi.unstubAllGlobals())
 
@@ -96,6 +105,41 @@ describe('Visão geral', () => {
 
     expect(await screen.findByText('www.saucedemo.com')).toBeInTheDocument()
     expect(await screen.findByText('Online')).toBeInTheDocument()
+  })
+})
+
+describe('Configurações', () => {
+  it('segredo configurado aparece só como selo: o campo vem vazio', async () => {
+    renderComApp(<App />, { rota: '/configuracoes' })
+
+    const campo = await screen.findByLabelText(/Chave da API Gemini/)
+    expect(campo).toHaveValue('')
+    expect(campo).toHaveAttribute('type', 'password')
+    expect(campo).toHaveAttribute('placeholder', expect.stringContaining('deixe em branco para manter'))
+    expect(screen.getByText('Gemini ativo')).toBeInTheDocument() // barra lateral
+  })
+
+  it('salvar envia PUT com a chave digitada e os campos do Azure', async () => {
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/configuracoes' })
+
+    await user.type(await screen.findByLabelText(/Chave da API Gemini/), 'AQ.nova')
+    await user.type(screen.getByLabelText('Organização'), 'minha-org')
+    await user.click(screen.getByRole('button', { name: 'Salvar configurações' }))
+
+    await vi.waitFor(() => expect(corpoEnviado('/api/configuracoes')).toBeDefined())
+    const corpo = corpoEnviado('/api/configuracoes')
+    expect(corpo.ia).toMatchObject({ provedor: 'gemini', chaveGemini: 'AQ.nova' })
+    expect(corpo.azure).toMatchObject({ organizacao: 'minha-org', pat: '' }) // PAT em branco = manter
+  })
+
+  it('"Remover chave" pede a remoção explícita do segredo', async () => {
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/configuracoes' })
+
+    await user.click(await screen.findByRole('button', { name: 'Remover chave' }))
+
+    await vi.waitFor(() => expect(corpoEnviado('/api/configuracoes')).toEqual({ remover: ['ia.gemini.chave'] }))
   })
 })
 

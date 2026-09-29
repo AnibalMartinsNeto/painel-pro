@@ -15,7 +15,12 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
 3. ✅ **Banco:** PostgreSQL no Docker, migrações com Flyway, entidades JPA, importação do histórico do painel Node e testes com Testcontainers.
 4. ✅ **Execução dos testes:** o backend dispara Cypress, Playwright e k6 (padrão Strategy), transmite o log ao vivo por SSE, grava resultados e log no banco, cancela a árvore de processos e aceita uma execução por vez (409).
 5. 🟨 **Frontend:** a base está pronta (rotas, cliente de API, telas de projetos, testes). As telas crescem junto com cada etapa.
-6. ⬜ **Integrações e qualidade:** triagem com IA, Azure DevOps e testes do próprio painel.
+6. 🟨 **Integrações e qualidade:**
+   - ✅ Configurações e segredos (AES-256-GCM, chave-mestra fora do banco)
+   - ⬜ Triagem com IA
+   - ⬜ Azure DevOps
+   - ⬜ Relatórios, screenshots, falha nova × recorrente
+   - ⬜ CI no GitHub Actions
 
 ## Como rodar tudo
 
@@ -94,6 +99,23 @@ POST /api/execucoes ─► OrquestradorExecucao.iniciar()
                           ▼ ler(): relatório JSON da ferramenta → ResultadoTeste
                  ExecucaoGravacao.concluir() → status, resultados e log no PostgreSQL
 ```
+
+### Configurações e segredos
+
+`GET/PUT /api/configuracoes` guarda ambiente, IA e Azure DevOps na tabela `configuracao`. Chaves de API e PAT são:
+
+- **criptografados** com AES-256-GCM antes de ir para o banco (`v1:<base64>`);
+- **somente escrita** pela API: o GET diz só se estão configurados, nunca devolve o valor;
+- **mascarados** no `toString()` dos DTOs, para não vazarem em logs.
+
+A **chave-mestra** que decifra os segredos fica fora do banco e do Git:
+
+| Ambiente | Origem |
+|---|---|
+| Produção | variável `PAINEL_SEGURANCA_CHAVE_MESTRA` (32 bytes em Base64) |
+| Desenvolvimento | arquivo `~/.qapanel/chave-mestra.key`, criado na primeira execução |
+
+> **Faça backup** de `~/.qapanel/chave-mestra.key`. Sem ela, os segredos gravados não podem ser lidos; seria preciso cadastrá-los de novo.
 
 ### Banco de dados
 

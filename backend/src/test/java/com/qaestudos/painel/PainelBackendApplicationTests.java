@@ -17,7 +17,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
  * <p>Substitui o "contextLoads" vazio gerado pelo Initializr, que subia o
  * contexto sem verificar nada e deixou passar um erro de configuração.
  */
-@SpringBootTest
+@SpringBootTest(properties = "painel.seguranca.chave-mestra=AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class PainelBackendApplicationTests {

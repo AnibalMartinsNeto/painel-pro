@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router'
+import { useConfiguracoes } from '../features/configuracoes/api'
 import { useEmAndamento } from '../features/execucoes/api'
 import { useProjetoAtual } from '../features/projetos/ProjetoAtual'
 import { ApiStatus } from './ApiStatus'
@@ -10,6 +11,7 @@ const NAV = [
   { to: '/triagem', label: 'Triagem IA' },
   { to: '/azure', label: 'Azure DevOps' },
   { to: '/relatorios', label: 'Relatórios' },
+  { to: '/configuracoes', label: 'Configurações' },
 ]
 
 /**
@@ -76,7 +78,9 @@ function SeletorProjeto() {
 
 function StatusLateral() {
   const { detalhe } = useProjetoAtual()
+  const { data: config } = useConfiguracoes()
   const baseUrl = detalhe.data?.baseUrl?.replace(/^https?:\/\//, '')
+  const nomeProvedor = config?.ia.provedor === 'anthropic' ? 'Claude' : 'Gemini'
 
   return (
     <div className="side-status">
@@ -84,23 +88,23 @@ function StatusLateral() {
         <span className="side-label">Ambiente</span>
         <div className={`status-line ${detalhe.data?.encontrado === false ? 'off' : ''}`}>
           <span className="dot pulse" aria-hidden="true" />
-          <span>Homologação</span>
+          <span>{config?.ambiente ?? 'Homologação'}</span>
         </div>
         {baseUrl && <div className="side-sub">{baseUrl}</div>}
       </div>
       <ApiStatus />
       <div>
         <span className="side-label">Azure DevOps</span>
-        <div className="status-line off">
+        <div className={`status-line ${config?.azure.configurado ? '' : 'off'}`}>
           <span className="dot" aria-hidden="true" />
-          <span>Não configurado</span>
+          <span>{config?.azure.configurado ? 'Configurado' : 'Não configurado'}</span>
         </div>
       </div>
       <div>
         <span className="side-label">Triagem IA</span>
-        <div className="status-line off">
+        <div className={`status-line ${config?.ia.ativa ? '' : 'warn'}`}>
           <span className="dot" aria-hidden="true" />
-          <span>Etapa 6</span>
+          <span>{config?.ia.ativa ? `${nomeProvedor} ativo` : 'Sem chave'}</span>
         </div>
       </div>
     </div>
