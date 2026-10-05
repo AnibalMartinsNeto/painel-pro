@@ -50,12 +50,13 @@ Dois cliques em **`iniciar.bat`**. Ele:
 
 1. confere Java, Node e Docker;
 2. abre o Docker Desktop se estiver fechado (o PostgreSQL roda nele);
-3. instala as dependências do front na primeira vez;
-4. empacota o backend **só se o código mudou** desde a última vez;
-5. abre as janelas **"PainelPro - Backend"** (`java -jar`, ~8s) e **"PainelPro - Front"** (Vite);
-6. espera a API responder e abre http://localhost:5173.
+3. sobe o PostgreSQL do painel e a **API local do ServeRest** (`../serverest-qa/compose.yaml`, porta 3000), usada pelos testes no lugar do servidor público;
+4. instala as dependências do front na primeira vez;
+5. empacota o backend **só se o código mudou** desde a última vez;
+6. abre as janelas **"PainelPro - Backend"** (`java -jar`, ~8s) e **"PainelPro - Front"** (Vite);
+7. espera a API responder e abre http://localhost:5173.
 
-Para desligar tudo: **`parar.bat`** (fecha as janelas e para o banco, sem apagar dados).
+Para desligar tudo: **`parar.bat`** (fecha as janelas e para o banco, sem apagar dados). A API local do ServeRest continua no ar; para pará-la, rode `docker compose down` dentro de `serverest-qa`.
 
 | Situação | Tempo aproximado até abrir |
 |---|---|
@@ -82,6 +83,19 @@ npm run dev                     # http://localhost:5173  ← abra este no navega
 
 O front chama `/api/...` na própria porta 5173, e o Vite repassa ao backend na 8080 (proxy configurado em `frontend/vite.config.ts`). Assim o navegador não bloqueia as chamadas por CORS.
 
+## Telas
+
+O projeto de testes (Cypress, Playwright ou k6) é escolhido no seletor da barra lateral e vale para todas as telas.
+
+| Tela | O que tem |
+|---|---|
+| **Visão geral** | Testes e aprovação do mês, falhas na fila de triagem, falhas por módulo e um botão para executar cada script do `package.json` |
+| **Execuções** | Nova execução (specs, navegador, novas tentativas), console com o log ao vivo, histórico e detalhe de cada execução |
+| **Triagem IA** | Fila de testes falhando; a IA (Gemini ou Claude) sugere título, classificação, severidade, passos e análise; o QA revisa, salva e publica no Jira |
+| **Jira** | Busca por chave: numa **demanda** (ex.: DEV-1), lista os specs que a citam e executa; num **bug publicado pelo painel**, mostra o teste que o encontrou e o botão **Retestar**. Lista os bugs publicados e o **histórico do projeto no Jira** (todas as issues, com o status atual) |
+| **Relatórios** | Totais de todo o histórico (execuções, testes únicos, que já falharam, instáveis, tempo total), aprovação por execução, testes que mais falham, exportação **CSV** e **JSON** |
+| **Configurações** | Ambiente, chaves de IA e conexão com o Jira (com "Testar conexão") |
+
 ## Frontend
 
 ```
@@ -89,12 +103,12 @@ src/
 ├── main.tsx              ← entrada: provedores globais (cache de dados, roteador)
 ├── App.tsx               ← mapa de rotas (URL → página)
 ├── api/client.ts         ← único ponto que faz fetch; converte erros da API (ApiError)
-├── components/           ← peças reutilizáveis: Layout, Badge, estados de carregando/erro
-├── features/projetos/    ← uma funcionalidade completa
-│   ├── api.ts              tipos (espelham os DTOs Java) + hooks de dados
-│   ├── ProjetosPage.tsx    tela /projetos
-│   ├── ProjetoDetalhePage  tela /projetos/:id
-│   └── *.test.tsx          testes de componente
+├── components/           ← peças reutilizáveis: Layout, Badge, Gauge, estados de carregando/erro
+├── features/             ← uma pasta por tela: api.ts (tipos que espelham os DTOs Java + hooks) e a página
+│   ├── visao-geral/  execucoes/  triagem/  jira/  relatorios/  configuracoes/
+│   ├── projetos/           projeto selecionado, compartilhado por todas as telas
+│   └── paginas.test.tsx    testes de componente das telas, com a API simulada
+├── lib/formato.ts        ← datas, durações, percentuais
 └── test/                 ← setup e utilitários de teste
 ```
 
@@ -123,7 +137,9 @@ cd backend
 | `GET /api/execucoes/{id}/log` | Log ao vivo (Server-Sent Events) |
 | `GET /api/execucoes/{id}/log.txt` | Log completo gravado |
 | `POST /api/execucoes/{id}/cancelar` | Interrompe a execução (mata os processos filhos) |
-| `POST /api/importacoes/painel-node` | Importa o histórico de `Painel/data/runs` (idempotente) |
+| `GET /api/relatorios?projeto=cypress` | Números da tela Relatórios: todo o histórico, aprovação das últimas 24 execuções, testes que mais falham e instáveis |
+| `GET /api/relatorios/execucoes.csv?projeto=cypress` | Todas as execuções do projeto em CSV (download) |
+| `POST /api/importacoes/painel-node` | Importa o histórico do painel Node de `C:\QA_Estudos\Painel\data\runs` (idempotente; propriedade `painel.importacao.pasta-painel-node`) |
 | `GET /actuator/health` | Saúde da aplicação |
 
 ### Como uma execução acontece
@@ -178,13 +194,15 @@ A **chave-mestra** que decifra os segredos fica fora do banco e do Git:
 | Endpoint | O que faz |
 |---|---|
 | `POST /api/triagem/{resultadoId}/publicar` | Corpo `{"demanda":"DEV-1"}`. Cria o Bug no Jira a partir da triagem salva e o liga à demanda ("Relates"). 409 se já foi publicado |
-| `GET /api/jira/demandas/{chave}?projeto=` | Dados da issue no Jira e os specs do projeto que citam a chave |
-| `GET /api/jira/bugs?projeto=` | Bugs já publicados pelo painel |
+| `GET /api/jira/demandas/{chave}?projeto=` | Dados da issue no Jira e os specs do projeto que citam a chave. Se a chave for um bug publicado pelo painel, traz também a `origem`: o teste que o encontrou, a demanda e se o spec ainda existe |
+| `GET /api/jira/bugs?projeto=` | Bugs já publicados pelo painel (lidos do banco) |
+| `GET /api/jira/issues?maximo=50` | Últimas issues do projeto no Jira, de qualquer origem (busca JQL na hora), com status e a marca `doPainel` (etiqueta `qa-panel`) |
 
 - **Rastreabilidade pela chave:** o teste leva a chave da demanda no nome (`describe("Login - ServeRest [DEV-1]")`). O painel acha os specs que a citam e sugere a demanda na hora de publicar.
 - A descrição vai em **ADF** (o formato de documento do Jira Cloud), com passos, esperado, encontrado, análise e o erro. A severidade vira prioridade (CRÍTICA→Highest ... BAIXA→Low), com as etiquetas `qa-panel` e o projeto.
 - A chamada ao Jira fica **fora da transação**, como na IA. Se o vínculo falhar, o bug continua criado e a resposta traz um aviso.
 - A migração V5 guarda na triagem a chave, o link, a demanda e a data da publicação.
+- **Bugs publicados × histórico do Jira:** o primeiro é o que o painel registrou no banco; o segundo é o que de fato existe no Jira. Comparar os dois revela issues "órfãs" (criadas no Jira mas não registradas no painel).
 
 ### Banco de dados
 
