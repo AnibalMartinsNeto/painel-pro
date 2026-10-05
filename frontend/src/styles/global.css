@@ -40,7 +40,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 a { color: inherit; }
 [hidden] { display: none !important; }
 
-.shell { max-width: 1080px; margin: 0 auto; padding: 40px 16px; display: flex; flex-direction: column; gap: 28px; }
+.shell { width: 100%; min-height: 100vh; padding: 28px 32px; display: flex; flex-direction: column; gap: 28px; }
 .frame {
   background: var(--frame); border: 1px solid var(--frame-border); border-radius: 24px;
   padding: 28px; display: flex; gap: 32px; box-shadow: 0 25px 50px -12px rgba(0,0,0,.5);
@@ -186,7 +186,7 @@ textarea.input { resize: vertical; min-height: 64px; line-height: 1.5; }
 .check { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--card-border); background: #10131a; cursor: pointer; font-size: 12px; font-family: var(--mono); }
 .check:hover { border-color: #374151; }
 .check input { accent-color: var(--green); }
-.spec-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.spec-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 8px; }
 
 .seg { display: inline-flex; background: #10131a; border: 1px solid var(--card-border); border-radius: 10px; padding: 3px; gap: 2px; }
 .seg button { border: 0; background: transparent; padding: 5px 10px; border-radius: 7px; font-size: 11px; font-weight: 600; color: var(--muted); cursor: pointer; }
@@ -251,7 +251,7 @@ details.spec summary::before { content: "›"; color: var(--muted); transition: 
 details.spec[open] summary::before { transform: rotate(90deg); }
 details.spec .spec-body { padding: 0 14px 10px; }
 
-.split { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
+.split { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 14px; align-items: start; }
 .stack { display: flex; flex-direction: column; gap: 14px; }
 .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; font-size: 12px; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; color: #e5e7eb; word-break: break-word; }
