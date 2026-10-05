@@ -43,6 +43,14 @@ echo  [..] Subindo o banco (PostgreSQL)...
 if errorlevel 1 (echo  [ERRO] O banco não subiu. Veja: docker compose -f backend\compose.yaml logs & goto :falha)
 echo  [ok] Banco rodando
 
+rem API local do ServeRest usada pelos testes (compose.yaml do serverest-qa).
+rem O ServeRest público limita requisições somando todos os usuários.
+if not exist "%~dp0..\serverest-qa\compose.yaml" goto :serverestOk
+echo  [..] Subindo a API local do ServeRest...
+"%DOCKER%" compose -f "%~dp0..\serverest-qa\compose.yaml" up -d >nul 2>&1
+if errorlevel 1 (echo  [!] A API local do ServeRest não subiu; os testes usarão o que estiver no .env.) else (echo  [ok] API do ServeRest em http://localhost:3000)
+:serverestOk
+
 rem ---------- 3. Dependências do front (só na primeira vez) ----------
 if exist "frontend\node_modules" goto :depsOk
 echo  [..] Primeira execução: instalando dependências do front (1-2 min)...
