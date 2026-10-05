@@ -80,4 +80,26 @@ class ExecucaoRepositoryTest {
         assertThat(repository.contarFalhasPorSpec("cypress", Instant.parse("2026-09-01T00:00:00Z")))
                 .containsExactly(new FalhasPorSpec("cypress/e2e/login.cy.js", 2));
     }
+
+    @Test
+    void historicoPorTesteContaFalhasEAprovacoesDeCadaTeste(@Autowired ResultadoTesteRepository resultados) {
+        // "teste 0" passa e depois falha (instável); "teste 1" sempre falha; "teste 2" sempre passa.
+        repository.save(execucao("cypress", Instant.parse("2026-09-10T12:00:00Z"), StatusTeste.PASSOU, StatusTeste.FALHOU, StatusTeste.PASSOU));
+        repository.save(execucao("cypress", Instant.parse("2026-09-11T12:00:00Z"), StatusTeste.FALHOU, StatusTeste.FALHOU, StatusTeste.PASSOU));
+        repository.save(execucao("playwright", Instant.parse("2026-09-11T12:00:00Z"), StatusTeste.FALHOU)); // outro projeto
+        em.flush();
+
+        var porTitulo = resultados.historicoPorTeste("cypress").stream()
+                .collect(java.util.stream.Collectors.toMap(HistoricoTeste::titulo, h -> h));
+
+        assertThat(porTitulo).hasSize(3);
+        assertThat(porTitulo.get("Login › teste 0")).extracting(HistoricoTeste::execucoes, HistoricoTeste::falhas, HistoricoTeste::instavel)
+                .containsExactly(2L, 1L, true);
+        assertThat(porTitulo.get("Login › teste 1")).extracting(HistoricoTeste::falhas, HistoricoTeste::instavel).containsExactly(2L, false);
+        assertThat(porTitulo.get("Login › teste 2").falhas()).isZero();
+
+        var falhas = resultados.falhasRecentes("cypress");
+        assertThat(falhas).hasSize(3);
+        assertThat(falhas.get(0).getExecucao().getIniciadaEm()).isEqualTo(Instant.parse("2026-09-11T12:00:00Z"));
+    }
 }

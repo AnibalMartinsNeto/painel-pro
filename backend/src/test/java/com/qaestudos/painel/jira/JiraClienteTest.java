@@ -149,6 +149,34 @@ class JiraClienteTest {
     }
 
     @Test
+    void ultimasIssuesBuscaPorJqlEMarcaAsDoPainel() {
+        jiraFalso.expect(method(HttpMethod.GET))
+                .andExpect(request -> {
+                    String url = java.net.URLDecoder.decode(request.getURI().toString(), StandardCharsets.UTF_8);
+                    assertThat(url).startsWith("https://empresa.atlassian.net/rest/api/3/search/jql?")
+                            .contains("jql=project = \"QA\" ORDER BY created DESC", "maxResults=20");
+                })
+                .andRespond(withSuccess("""
+                        {"issues":[
+                          {"key":"QA-7","fields":{"summary":"Login falha","issuetype":{"name":"Bug"},
+                            "status":{"name":"Em andamento","statusCategory":{"key":"indeterminate"}},"priority":{"name":"High"},
+                            "created":"2026-09-28T14:30:00.000-0300","labels":["qa-panel","cypress"]}},
+                          {"key":"QA-6","fields":{"summary":"Pedido do portal","issuetype":{"name":"Task"},
+                            "status":{"name":"Aberto","statusCategory":{"key":"new"}},"created":"2026-09-27T09:00:00.000-0300"}}
+                        ],"isLast":true}
+                        """, MediaType.APPLICATION_JSON));
+
+        var issues = cliente.ultimasIssues(20);
+
+        assertThat(issues).hasSize(2);
+        assertThat(issues.get(0)).isEqualTo(new JiraCliente.IssueHistorico("QA-7", "Login falha", "Bug", "Em andamento",
+                "indeterminate", "High", java.time.Instant.parse("2026-09-28T17:30:00Z"), true,
+                "https://empresa.atlassian.net/browse/QA-7"));
+        assertThat(issues.get(1).doPainel()).isFalse();
+        assertThat(issues.get(1).prioridade()).isNull();
+    }
+
+    @Test
     void semTokenAvisaOQueFaltaSemChamarOJira() {
         when(config.valor(ChaveConfig.JIRA_TOKEN)).thenReturn(Optional.empty());
 

@@ -89,6 +89,7 @@ export function usePublicarNoJira(projeto: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['triagem', projeto] })
       queryClient.invalidateQueries({ queryKey: ['jira-bugs', projeto] })
+      queryClient.invalidateQueries({ queryKey: ['jira-historico'] })
     },
   })
 }

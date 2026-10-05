@@ -19,7 +19,7 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
    - ✅ Configurações e segredos (AES-256-GCM, chave-mestra fora do banco), com Jira no lugar do Azure DevOps
    - ✅ Triagem com IA (Gemini ou Claude; fila por consulta nativa; rascunho editável; heurística sem chave)
    - ✅ Jira: publicar o bug da triagem ligado à demanda, e buscar a demanda para rodar os specs que a citam
-   - ⬜ Relatórios, screenshots, falha nova × recorrente
+   - 🟨 Relatórios (✅ totais do histórico, aprovação por execução, testes que mais falham/instáveis, CSV e JSON; ✅ histórico do projeto no Jira) · ⬜ screenshots, falha nova × recorrente
    - ⬜ CI no GitHub Actions
 
 ## Como rodar do zero

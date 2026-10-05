@@ -87,7 +87,7 @@ public class ExecucaoService {
     }
 
     /** "cypress/e2e/login.cy.js" → "Login". */
-    static String moduloDe(String spec) {
+    public static String moduloDe(String spec) {
         String base = spec.substring(spec.lastIndexOf('/') + 1).replaceFirst("\\.(cy|spec|test)?\\.?[jt]sx?$", "");
         return NOMES_MODULO.getOrDefault(base, base.isEmpty() ? spec : Character.toUpperCase(base.charAt(0)) + base.substring(1));
     }

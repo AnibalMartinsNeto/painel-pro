@@ -11,6 +11,7 @@ import com.qaestudos.painel.triagem.Severidade;
 import com.qaestudos.painel.triagem.Triagem;
 import com.qaestudos.painel.triagem.TriagemRepository;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -54,7 +55,18 @@ public class PublicacaoJiraService {
         this.clock = clock;
     }
 
-    public record Demanda(String chave, JiraCliente.Issue issue, String erro, List<String> specs) {}
+    /**
+     * @param origem preenchido quando a chave é um bug que o painel publicou:
+     *               o teste que o encontrou, para retestar a correção
+     */
+    public record Demanda(String chave, JiraCliente.Issue issue, String erro, List<String> specs, OrigemBug origem) {}
+
+    /**
+     * De onde veio um bug publicado pelo painel.
+     *
+     * @param specExiste false se o arquivo do teste foi apagado/renomeado depois
+     */
+    public record OrigemBug(String spec, String teste, String demanda, Instant publicadaEm, boolean specExiste) {}
 
     public record Publicacao(String chave, String url, String demanda, String aviso) {}
 
@@ -72,16 +84,32 @@ public class PublicacaoJiraService {
         String c = chave(digitada);
         Projeto projeto = projetos.buscar(projetoId);
         List<String> specs = projetos.specsQueCitam(projeto, c);
+        OrigemBug origem = triagens.findByProjetoIdAndJiraIssue(projetoId, c)
+                .map(t -> origemDe(t, projetos.listarSpecs(projeto)))
+                .orElse(null);
         try {
-            return new Demanda(c, jira.buscarIssue(c), null, specs);
+            return new Demanda(c, jira.buscarIssue(c), null, specs, origem);
         } catch (RequisicaoInvalidaException e) {
-            return new Demanda(c, null, e.getMessage(), specs);
+            return new Demanda(c, null, e.getMessage(), specs, origem);
         }
+    }
+
+    /** chaveTeste = "spec › describe › teste": o spec é o primeiro pedaço. */
+    static OrigemBug origemDe(Triagem t, List<String> specsDoProjeto) {
+        String[] partes = t.getChaveTeste().split(" › ", 2);
+        String spec = partes[0];
+        String teste = partes.length > 1 ? partes[1] : t.getChaveTeste();
+        return new OrigemBug(spec, teste, t.getDemanda(), t.getPublicadaEm(), specsDoProjeto.contains(spec));
     }
 
     public List<Triagem> listarPublicados(String projetoId) {
         projetos.buscar(projetoId);
         return triagens.findByProjetoIdAndJiraIssueIsNotNullOrderByPublicadaEmDesc(projetoId);
+    }
+
+    /** Histórico do projeto no Jira: as issues mais recentes, criadas pelo painel ou não. */
+    public List<JiraCliente.IssueHistorico> historico(int maximo) {
+        return jira.ultimasIssues(Math.clamp(maximo, 1, 100));
     }
 
     /** Dados lidos do banco antes de falar com o Jira. */

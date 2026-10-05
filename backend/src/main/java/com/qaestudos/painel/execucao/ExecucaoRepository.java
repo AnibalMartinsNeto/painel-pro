@@ -58,4 +58,15 @@ public interface ExecucaoRepository extends JpaRepository<Execucao, Long> {
             order by count(r) desc
             """)
     List<FalhasPorSpec> contarFalhasPorSpec(@Param("projetoId") String projetoId, @Param("desde") Instant desde);
+
+    /** Últimas execuções concluídas (base do gráfico "aprovação por execução"). */
+    List<Execucao> findTop24ByProjetoIdAndStatusInOrderByIniciadaEmDesc(String projetoId, Collection<StatusExecucao> status);
+
+    /** Todas as execuções do projeto, da mais recente para a mais antiga (exportação CSV). */
+    List<Execucao> findByProjetoIdOrderByIniciadaEmDesc(String projetoId);
+
+    long countByProjetoId(String projetoId);
+
+    @Query("select coalesce(sum(e.duracaoMs), 0L) from Execucao e where e.projetoId = :projetoId")
+    long somarDuracao(@Param("projetoId") String projetoId);
 }

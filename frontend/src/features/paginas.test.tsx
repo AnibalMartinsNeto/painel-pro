@@ -237,6 +237,95 @@ describe('Jira', () => {
     expect(screen.getByLabelText('Specs da demanda')).toHaveTextContent('cypress/e2e/login.cy.js')
     expect(screen.getByRole('button', { name: 'Executar 1 spec' })).toBeEnabled()
   })
+
+  it('buscar um bug publicado mostra o teste que o encontrou e permite retestar', async () => {
+    const fetchDoTeste = apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/execucoes': { ...execucao, id: 8, status: 'EM_ANDAMENTO' },
+      '/api/configuracoes': comJira,
+      '/api/jira/bugs?projeto=cypress': [],
+      '/api/jira/demandas/DEV-8?projeto=cypress': {
+        chave: 'DEV-8', erro: null, specs: [],
+        issue: { chave: 'DEV-8', resumo: 'Login quebrado', tipo: 'Bug', status: 'Aberto', url: 'https://x/browse/DEV-8' },
+        origem: { spec: 'cypress/e2e/login.cy.js', teste: 'Login [DEV-1] › deve logar', demanda: 'DEV-1', publicadaEm: '2026-09-30T00:17:00Z', specExiste: true },
+      },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/jira' })
+
+    await user.type(await screen.findByLabelText('Chave da issue'), 'DEV-8')
+    await user.click(screen.getByRole('button', { name: 'Buscar' }))
+
+    const origem = await screen.findByLabelText('Origem do bug')
+    expect(origem).toHaveTextContent('Login [DEV-1] › deve logar')
+    expect(screen.queryByText(/Nenhum spec/)).not.toBeInTheDocument()
+    await user.click(within(origem).getByRole('button', { name: 'Retestar' }))
+
+    const post = (fetchDoTeste.mock.calls as unknown as [string, RequestInit | undefined][])
+      .find(([url, init]) => url === '/api/execucoes' && init?.method === 'POST')!
+    expect(JSON.parse(post[1]!.body as string)).toMatchObject({ specs: ['cypress/e2e/login.cy.js'] })
+  })
+
+  it('mostra o histórico do projeto no Jira e filtra as criadas pelo painel', async () => {
+    apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': comJira,
+      '/api/jira/bugs?projeto=cypress': [],
+      '/api/jira/issues?maximo=50': [
+        { chave: 'DEV-3', resumo: 'Imagens duplicadas', tipo: 'Bug', status: 'Em andamento', categoriaStatus: 'indeterminate',
+          prioridade: 'High', criadaEm: '2026-10-01T12:00:00Z', doPainel: true, url: 'https://x/browse/DEV-3' },
+        { chave: 'DEV-2', resumo: 'Pedido aberto no portal', tipo: 'Task', status: 'Aberto', categoriaStatus: 'new',
+          prioridade: null, criadaEm: '2026-09-30T12:00:00Z', doPainel: false, url: 'https://x/browse/DEV-2' },
+      ],
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/jira' })
+
+    const historico = await screen.findByLabelText('Histórico do Jira')
+    expect(await within(historico).findByText('Imagens duplicadas')).toBeInTheDocument()
+    expect(within(historico).getByText('Pedido aberto no portal')).toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('só criadas pelo painel'))
+    expect(within(historico).queryByText('Pedido aberto no portal')).not.toBeInTheDocument()
+    expect(within(historico).getByText('Imagens duplicadas')).toBeInTheDocument()
+  })
+})
+
+describe('Relatórios', () => {
+  it('mostra os totais do histórico e os testes que mais falham, com link para a triagem', async () => {
+    apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': configuracoes,
+      '/api/execucoes?projeto=cypress': [execucao],
+      '/api/relatorios?projeto=cypress': {
+        execucoes: 3, testesUnicos: 35, jaFalharam: 1, instaveis: 1, tempoTotalMs: 125_000,
+        aprovacaoPorExecucao: [execucao],
+        testesComFalha: [{
+          chave: 'x', spec: 'cypress/e2e/user-behavior-matrix.cy.js', titulo: 'Matriz › problem_user › imagens',
+          modulo: 'Matriz de usuários', tipoErro: 'Asserção', ultimaMensagem: 'AssertionError', falhas: 2, execucoes: 3,
+          instavel: true, ultimaFalha: '2026-09-28T23:50:58Z', ultimoResultadoId: 2,
+        }],
+      },
+    })
+    renderComApp(<App />, { rota: '/relatorios' })
+
+    const totais = await screen.findByLabelText('Totais')
+    expect(await within(totais).findByText('35')).toBeInTheDocument()
+    expect(within(totais).getByText('2min 5s')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Aprovação por execução' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'imagens' })).toHaveAttribute('href', '/triagem/2')
+    expect(screen.getByText('instável')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Exportar CSV' })).toHaveAttribute('href', '/api/relatorios/execucoes.csv?projeto=cypress')
+  })
 })
 
 describe('Configurações', () => {

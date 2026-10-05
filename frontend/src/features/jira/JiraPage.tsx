@@ -6,7 +6,7 @@ import { fmtData, plural } from '../../lib/formato'
 import { useConfiguracoes } from '../configuracoes/api'
 import { useEmAndamento, useIniciarExecucao } from '../execucoes/api'
 import { useProjetoAtual } from '../projetos/ProjetoAtual'
-import { useBugsPublicados, useDemanda } from './api'
+import { useBugsPublicados, useDemanda, useHistoricoJira } from './api'
 
 /** Tela /jira: testes por demanda e bugs publicados pelo painel. */
 export function JiraPage() {
@@ -92,7 +92,45 @@ export function JiraPage() {
             ) : (
               <p className="hint" role="alert">Não foi possível consultar {d.chave} no Jira: {d.erro}</p>
             )}
-            {d.specs.length ? (
+            {d.origem && (
+              <div className="note" style={{ margin: '10px 0' }} aria-label="Origem do bug">
+                <b>{d.chave} foi publicado pelo painel</b> a partir da falha do teste
+                <div style={{ margin: '6px 0' }}>
+                  <code>{d.origem.teste}</code>
+                  <div className="hint">
+                    {d.origem.spec}
+                    {d.origem.publicadaEm && ` · publicado em ${fmtData(d.origem.publicadaEm)}`}
+                  </div>
+                </div>
+                <div className="btn-row">
+                  {d.origem.specExiste ? (
+                    <button
+                      className="btn primary sm"
+                      type="button"
+                      onClick={() => rodarSpecs([d.origem!.spec])}
+                      disabled={!!emAndamento || executar.isPending}
+                    >
+                      Retestar
+                    </button>
+                  ) : (
+                    <span className="hint">O arquivo deste teste não existe mais no projeto: não dá para retestar.</span>
+                  )}
+                  {d.origem.demanda && (
+                    <button
+                      className="btn sm"
+                      type="button"
+                      onClick={() => {
+                        setDigitada(d.origem!.demanda!)
+                        setChave(d.origem!.demanda!)
+                      }}
+                    >
+                      Ver testes da demanda {d.origem.demanda}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            {d.origem && !d.specs.length ? null : d.specs.length ? (
               <>
                 <div className="spec-list" style={{ margin: '10px 0' }} aria-label="Specs da demanda">
                   {d.specs.map((s) => (
@@ -140,6 +178,67 @@ export function JiraPage() {
           ))}
         </div>
       </section>
+
+      <HistoricoJira configurado={!!config?.jira.configurado} projetoJira={config?.jira.projeto ?? null} />
     </>
+  )
+}
+
+const TOM_STATUS = { new: 'idle', indeterminate: 'warn', done: 'ok' } as const
+
+/** Últimas issues do projeto no Jira, de qualquer origem (painel, portal, criadas à mão). */
+function HistoricoJira({ configurado, projetoJira }: { configurado: boolean; projetoJira: string | null }) {
+  const historico = useHistoricoJira(configurado)
+  const [soDoPainel, setSoDoPainel] = useState(false)
+  const issues = (historico.data ?? []).filter((i) => !soDoPainel || i.doPainel)
+
+  return (
+    <section className="card flat">
+      <div className="card-head" style={{ padding: '16px 16px 0' }}>
+        <span className="eyebrow">Histórico do projeto {projetoJira ?? ''} no Jira</span>
+        {configurado && (
+          <div className="btn-row">
+            <label className="hint" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+              <input type="checkbox" checked={soDoPainel} onChange={(e) => setSoDoPainel(e.target.checked)} />
+              só criadas pelo painel
+            </label>
+            <button className="btn ghost sm" type="button" onClick={() => historico.refetch()} disabled={historico.isFetching}>
+              {historico.isFetching ? 'Atualizando…' : 'Atualizar'}
+            </button>
+          </div>
+        )}
+      </div>
+      {!configurado && (
+        <div className="empty">
+          Configure o Jira em <Link to="/configuracoes">Configurações</Link> para ver o histórico.
+        </div>
+      )}
+      {historico.error && (
+        <div style={{ padding: 16 }}>
+          <ErroApi erro={historico.error} />
+        </div>
+      )}
+      {historico.isPending && configurado && <div className="empty">Buscando no Jira…</div>}
+      <div className="list" style={{ marginTop: 8 }} aria-label="Histórico do Jira">
+        {historico.data && issues.length === 0 && (
+          <div className="empty">{soDoPainel ? 'Nenhuma issue criada pelo painel.' : 'Nenhuma issue no projeto.'}</div>
+        )}
+        {issues.map((i) => (
+          <a key={i.chave} className="list-item" href={i.url} target="_blank" rel="noopener">
+            <Badge tom="info">{i.chave}</Badge>
+            <div className="li-main">
+              <div className="li-title">{i.resumo}</div>
+              <div className="li-sub">
+                {i.tipo ?? '—'} · {fmtData(i.criadaEm)}
+                {i.prioridade && ` · prioridade ${i.prioridade}`}
+                {i.doPainel && ' · criada pelo painel'}
+              </div>
+            </div>
+            {i.status && <Badge tom={TOM_STATUS[i.categoriaStatus ?? 'new'] ?? 'idle'}>{i.status}</Badge>}
+            <span className="hint">↗</span>
+          </a>
+        ))}
+      </div>
+    </section>
   )
 }

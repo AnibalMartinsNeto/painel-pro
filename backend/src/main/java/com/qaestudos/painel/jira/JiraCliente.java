@@ -9,6 +9,9 @@ import com.qaestudos.painel.configuracao.ConfiguracaoService;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -127,6 +130,66 @@ public class JiraCliente {
             throw new RequisicaoInvalidaException("O Jira recusou o bug: " + e.getResponseBodyAsString());
         } catch (HttpClientErrorException.Unauthorized | HttpClientErrorException.Forbidden e) {
             throw new RequisicaoInvalidaException("Sem permissão para criar issues no projeto %s (%s).".formatted(projeto, e.getStatusCode()));
+        } catch (ResourceAccessException e) {
+            throw new RequisicaoInvalidaException("Não foi possível conectar ao Jira em %s.".formatted(texto(JIRA_URL)));
+        }
+    }
+
+    /** Uma issue do histórico do projeto. doPainel: tem a etiqueta "qa-panel" (criada pelo painel). */
+    public record IssueHistorico(
+            String chave, String resumo, String tipo, String status, String categoriaStatus, String prioridade,
+            Instant criadaEm, boolean doPainel, String url) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Busca(List<IssueBusca> issues) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record IssueBusca(String key, Campos fields) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        record Campos(String summary, IssueJson.Nome issuetype, Status status, IssueJson.Nome priority,
+                      String created, List<String> labels) {}
+
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        record Status(String name, Categoria statusCategory) {}
+
+        /** "new" (a fazer), "indeterminate" (em andamento) ou "done" (concluída). */
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        record Categoria(String key) {}
+    }
+
+    /** O Jira manda datas como "2026-09-28T14:30:00.000-0300" (fuso sem dois-pontos). */
+    private static final DateTimeFormatter DATA_JIRA = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+
+    /**
+     * GET /search/jql: as issues mais recentes do projeto configurado, de
+     * qualquer origem (painel, portal, criadas à mão).
+     */
+    public List<IssueHistorico> ultimasIssues(int maximo) {
+        String projeto = obrigatorio(JIRA_PROJETO, "chave do projeto");
+        try {
+            Busca busca = cliente().get()
+                    .uri(u -> u.path("/rest/api/3/search/jql")
+                            .queryParam("jql", "project = \"%s\" ORDER BY created DESC".formatted(projeto))
+                            .queryParam("fields", "summary,issuetype,status,priority,created,labels")
+                            .queryParam("maxResults", maximo)
+                            .build())
+                    .retrieve().body(Busca.class);
+            if (busca == null || busca.issues() == null) return List.of();
+            return busca.issues().stream().map(i -> {
+                var f = i.fields();
+                return new IssueHistorico(i.key(), f.summary(),
+                        f.issuetype() == null ? null : f.issuetype().name(),
+                        f.status() == null ? null : f.status().name(),
+                        f.status() == null || f.status().statusCategory() == null ? null : f.status().statusCategory().key(),
+                        f.priority() == null ? null : f.priority().name(),
+                        f.created() == null ? null : OffsetDateTime.parse(f.created(), DATA_JIRA).toInstant(),
+                        f.labels() != null && f.labels().contains("qa-panel"),
+                        link(i.key()));
+            }).toList();
+        } catch (HttpClientErrorException.Unauthorized e) {
+            throw new RequisicaoInvalidaException("O Jira recusou as credenciais (401). Confira o e-mail e o API token.");
+        } catch (HttpClientErrorException e) {
+            throw new RequisicaoInvalidaException("O Jira respondeu %s ao buscar as issues do projeto %s.".formatted(e.getStatusCode(), projeto));
         } catch (ResourceAccessException e) {
             throw new RequisicaoInvalidaException("Não foi possível conectar ao Jira em %s.".formatted(texto(JIRA_URL)));
         }

@@ -32,6 +32,12 @@ public class JiraController {
         return service.buscarDemanda(projeto, chave);
     }
 
+    /** GET /api/jira/issues?maximo=50 → últimas issues do projeto no Jira (consulta o Jira na hora). */
+    @GetMapping("/issues")
+    public List<JiraCliente.IssueHistorico> historico(@RequestParam(defaultValue = "50") int maximo) {
+        return service.historico(maximo);
+    }
+
     /** GET /api/jira/bugs?projeto=cypress → bugs que o painel publicou no Jira. */
     @GetMapping("/bugs")
     public List<BugPublicado> bugs(@RequestParam String projeto) {

@@ -15,6 +15,16 @@ export interface Demanda {
   issue: IssueJira | null
   erro: string | null // Jira indisponível: ainda assim vêm os specs
   specs: string[]
+  origem: OrigemBug | null // a chave é um bug publicado pelo painel
+}
+
+/** O teste que encontrou um bug publicado pelo painel. */
+export interface OrigemBug {
+  spec: string
+  teste: string
+  demanda: string | null
+  publicadaEm: string | null
+  specExiste: boolean // false: o arquivo do teste foi apagado/renomeado
 }
 
 export interface BugPublicado {
@@ -24,6 +34,28 @@ export interface BugPublicado {
   chaveTeste: string
   demanda: string | null
   publicadaEm: string
+}
+
+export interface IssueHistorico {
+  chave: string
+  resumo: string
+  tipo: string | null
+  status: string | null
+  categoriaStatus: 'new' | 'indeterminate' | 'done' | null
+  prioridade: string | null
+  criadaEm: string | null
+  doPainel: boolean // etiqueta "qa-panel"
+  url: string
+}
+
+/** Últimas issues do projeto no Jira — consulta o Jira na hora, então só busca com o Jira configurado. */
+export function useHistoricoJira(configurado: boolean) {
+  return useQuery({
+    queryKey: ['jira-historico'],
+    queryFn: () => apiGet<IssueHistorico[]>('/api/jira/issues?maximo=50'),
+    enabled: configurado,
+    retry: false,
+  })
 }
 
 /** Busca só quando há uma chave para buscar (enabled). */

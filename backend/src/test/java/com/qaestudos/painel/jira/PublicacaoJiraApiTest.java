@@ -94,6 +94,21 @@ class PublicacaoJiraApiTest {
     }
 
     @Test
+    void buscarOBugPublicadoMostraOTesteQueOEncontrou() {
+        salvarTriagem();
+        assertThat(publicar("DEV-1")).hasStatusOk();
+        given(jira.buscarIssue("DEV-2")).willReturn(new JiraCliente.Issue("DEV-2", "Login falhando", "Bug", "Aberto",
+                "https://empresa.atlassian.net/browse/DEV-2"));
+
+        assertThat(mvc.get().uri("/api/jira/demandas/dev-2?projeto=k6")).hasStatusOk().bodyJson()
+                .isLenientlyEqualTo("""
+                        {"chave":"DEV-2","origem":{"spec":"tests/login.js","teste":"Login › ok","demanda":"DEV-1"}}
+                        """);
+        // Uma demanda comum (não publicada pelo painel) não tem origem.
+        assertThat(mvc.get().uri("/api/jira/demandas/DEV-1?projeto=k6")).bodyJson().extractingPath("$.origem").isNull();
+    }
+
+    @Test
     void segundaPublicacaoDoMesmoTesteDevolve409() {
         salvarTriagem();
         assertThat(publicar("DEV-1")).hasStatusOk();
