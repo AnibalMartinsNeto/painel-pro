@@ -35,6 +35,14 @@ goto :esperaDocker
 :dockerOk
 echo  [ok] Docker rodando
 
+rem O banco precisa subir AQUI: o jar empacotado não traz o suporte
+rem automático a docker compose (ele só existe no modo desenvolvimento).
+rem --wait espera o healthcheck do Postgres antes de seguir.
+echo  [..] Subindo o banco (PostgreSQL)...
+"%DOCKER%" compose -f "%~dp0backend\compose.yaml" up -d --wait >nul 2>&1
+if errorlevel 1 (echo  [ERRO] O banco não subiu. Veja: docker compose -f backend\compose.yaml logs & goto :falha)
+echo  [ok] Banco rodando
+
 rem ---------- 3. Dependências do front (só na primeira vez) ----------
 if exist "frontend\node_modules" goto :depsOk
 echo  [..] Primeira execução: instalando dependências do front (1-2 min)...
