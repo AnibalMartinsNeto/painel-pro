@@ -188,6 +188,7 @@ A **chave-mestra** que decifra os segredos fica fora do banco e do Git:
 
 - A triagem é por **teste** (projeto + "spec › título"), não por execução: a análise continua valendo se o teste falhar de novo.
 - A classificação da IA fica como **sugestão** até o QA confirmar.
+- **Regras de negócio:** cada projeto pode apontar um `.md` com as regras do sistema testado (`painel.projetos[].arquivo-regras` no `application.yml`; hoje `../serverest-qa/REGRAS_DE_NEGOCIO.md`). O arquivo vai no prompt como "fonte da verdade": a IA classifica como bug da aplicação quando uma regra é violada (citando o código, ex.: USU-09) e como falha de automação quando o teste espera algo que as regras não exigem. A tela da triagem mostra se o arquivo foi encontrado.
 - A chamada à IA acontece **fora da transação do banco** (`TransactionTemplate`): esperar um serviço externo com uma conexão presa esgotaria o pool.
 - Gemini e Claude fazem novas tentativas com espera crescente em 429/503; erros como 401 falham na hora. Cada tentativa vai para o log.
 

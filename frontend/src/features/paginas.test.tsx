@@ -130,6 +130,21 @@ describe('Triagem', () => {
     expect(await screen.findByText('aguardando triagem')).toBeInTheDocument() // KPI da Visão geral
   })
 
+  it('mostra se a IA está usando o arquivo de regras de negócio do projeto', async () => {
+    apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': { ...cypress, regras: { arquivo: 'REGRAS_DE_NEGOCIO.md', encontrado: true }, codigoSistema: [{ pasta: 'ServeRest-front', encontrada: true }, { pasta: 'ServeRest', encontrada: false }] },
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': configuracoes,
+      '/api/triagem?projeto=cypress': [falhaPendente],
+    })
+    renderComApp(<App />, { rota: '/triagem' })
+
+    expect(await screen.findByText('Regras de negócio · REGRAS_DE_NEGOCIO.md')).toBeInTheDocument()
+    expect(screen.getByText('Código do sistema · ServeRest-front')).toBeInTheDocument() // só as pastas que existem
+  })
+
   it('"Analisar com IA" chama a API e a sugestão aparece pré-selecionada', async () => {
     const user = userEvent.setup()
     renderComApp(<App />, { rota: '/triagem' })
@@ -240,9 +255,10 @@ describe('Jira', () => {
     expect(screen.queryByText('Outra › falha pendente', { selector: '.test-title' })).not.toBeInTheDocument()
   })
 
-  it('publicar mostra o carregamento desde o clique e um clique duplo cria um bug só', async () => {
+  it('publicar mostra o carregamento até o fim (mesmo com a triagem recarregada) e um clique duplo cria um bug só', async () => {
     let liberarSalvamento!: () => void
-    const fetchDoTeste = apiFalsa({
+    let liberarPublicacao!: () => void
+    const rotas: Record<string, unknown> = {
       '/actuator/health': { status: 'UP' },
       '/api/projetos': projetos,
       '/api/projetos/cypress': cypress,
@@ -251,27 +267,37 @@ describe('Jira', () => {
       '/api/triagem?projeto=cypress': [{ ...falhaPendente, triagem: rascunhoIa }],
       '/api/triagem/2': rascunhoIa,
       '/api/triagem/2/publicar': { chave: 'DEV-2', url: 'https://x/browse/DEV-2', demanda: null, aviso: null },
-    })
-    // Segura o salvamento (PUT) para ver a tela no meio do envio.
+    }
+    const fetchDoTeste = apiFalsa(rotas)
+    // Segura o salvamento (PUT) e a publicação (POST) para ver a tela no meio do envio.
     const fetchOriginal = fetchDoTeste.getMockImplementation()!
-    fetchDoTeste.mockImplementation(((url: string, init?: RequestInit) =>
-      init?.method === 'PUT'
-        ? new Promise<Response>((ok) => (liberarSalvamento = () => ok(fetchOriginal(url) as unknown as Response)))
-        : fetchOriginal(url)) as typeof fetchOriginal)
+    fetchDoTeste.mockImplementation(((url: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') return new Promise<Response>((ok) => (liberarSalvamento = () => ok(fetchOriginal(url) as unknown as Response)))
+      if (init?.method === 'POST' && url.endsWith('/publicar'))
+        return new Promise<Response>((ok) => (liberarPublicacao = () => ok(fetchOriginal(url) as unknown as Response)))
+      return fetchOriginal(url)
+    }) as typeof fetchOriginal)
     const user = userEvent.setup()
     renderComApp(<App />, { rota: '/triagem/2' })
 
     await user.dblClick(await screen.findByRole('button', { name: 'Publicar no Jira' }))
 
-    const botao = await screen.findByRole('button', { name: /Salvando a triagem/ })
-    expect(botao).toBeDisabled()
+    expect(await screen.findByRole('button', { name: /Salvando a triagem/ })).toBeDisabled()
+    // Como no backend real: depois de salvar, a fila volta com a triagem atualizada,
+    // e o formulário é recriado. O botão NÃO pode voltar a "Publicar no Jira".
+    rotas['/api/triagem?projeto=cypress'] = [{ ...falhaPendente, triagem: { ...rascunhoIa, classificacao: 'BUG_APLICACAO', atualizadaEm: '2026-10-06T01:00:00Z' } }]
     liberarSalvamento()
 
-    await vi.waitFor(() => {
-      const publicacoes = (fetchDoTeste.mock.calls as unknown as [string, RequestInit | undefined][])
-        .filter(([u, i]) => u === '/api/triagem/2/publicar' && i?.method === 'POST')
-      expect(publicacoes).toHaveLength(1)
-    })
+    expect(await screen.findByRole('button', { name: /Criando o bug no Jira/ })).toBeDisabled()
+    await new Promise((r) => setTimeout(r, 50)) // dá tempo da fila recarregar e o formulário ser recriado
+    expect(screen.getByRole('button', { name: /Criando o bug no Jira/ })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Publicar no Jira' })).not.toBeInTheDocument()
+
+    liberarPublicacao()
+    expect(await screen.findByText(/Bug DEV-2 criado no Jira/)).toBeInTheDocument()
+    const publicacoes = (fetchDoTeste.mock.calls as unknown as [string, RequestInit | undefined][])
+      .filter(([u, i]) => u === '/api/triagem/2/publicar' && i?.method === 'POST')
+    expect(publicacoes).toHaveLength(1)
   })
 
   it('busca a demanda e lista os specs que a citam', async () => {

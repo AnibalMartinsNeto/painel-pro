@@ -85,6 +85,18 @@ class ProjetoServiceTest {
     }
 
     @Test
+    void regrasLeOArquivoDeRegrasDeNegocioQuandoExiste() throws IOException {
+        Path arquivo = tmp.resolve("REGRAS.md");
+        Projeto comRegras = new Projeto("cypress", "Cypress", TipoProjeto.CYPRESS, tmp.resolve("Cypress"),
+                cypress.pastaSpecs(), cypress.padraoSpec(), cypress.navegadores(), arquivo);
+
+        assertThat(service.regras(comRegras)).isEmpty(); // configurado, mas o arquivo ainda não existe
+        Files.writeString(arquivo, "# Regras\n- USU-03: e-mail único");
+        assertThat(service.regras(comRegras)).contains("# Regras\n- USU-03: e-mail único");
+        assertThat(service.regras(cypress)).isEmpty(); // projeto sem arquivo de regras
+    }
+
+    @Test
     void baseUrlLeODeclaradoNoArquivoDeConfiguracao() throws IOException {
         Files.createDirectories(cypress.diretorio());
         Files.writeString(cypress.diretorio().resolve("cypress.config.js"), "e2e: { baseUrl: \"https://minha.app\" }");

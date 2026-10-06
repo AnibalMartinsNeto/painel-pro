@@ -29,10 +29,17 @@ public record PainelProperties(@NotEmpty List<@Valid ProjetoConfig> projetos) {
             @NotBlank String diretorio,
             @NotBlank String pastaSpecs,
             @NotBlank String padraoSpec,
-            List<String> navegadores) {
+            List<String> navegadores,
+            // Opcional: .md com as regras de negócio do sistema testado,
+            // enviado à IA na triagem (relativo à pasta do backend).
+            String arquivoRegras,
+            // Opcional: pastas com o código-fonte do sistema testado; a IA
+            // recebe os trechos ligados à falha (relativas à pasta do backend).
+            List<String> codigoSistema) {
 
         public ProjetoConfig {
             navegadores = navegadores == null ? List.of() : List.copyOf(navegadores);
+            codigoSistema = codigoSistema == null ? List.of() : List.copyOf(codigoSistema);
         }
     }
 }

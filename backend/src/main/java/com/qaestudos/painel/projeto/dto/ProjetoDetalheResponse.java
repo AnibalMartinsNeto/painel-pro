@@ -4,6 +4,7 @@ import com.qaestudos.painel.projeto.Projeto;
 import com.qaestudos.painel.projeto.ScriptExecucao;
 import com.qaestudos.painel.projeto.StatusProjeto;
 import com.qaestudos.painel.projeto.TipoProjeto;
+import java.nio.file.Files;
 import java.util.List;
 
 /**
@@ -19,10 +20,19 @@ public record ProjetoDetalheResponse(
         String baseUrl,
         List<String> navegadores,
         List<String> specs,
-        List<ScriptExecucao> scripts) {
+        List<ScriptExecucao> scripts,
+        RegrasNegocio regras,
+        List<PastaSistema> codigoSistema) {
+
+    /** Pasta com código do sistema testado que a IA consulta na triagem, e se ela existe. */
+    public record PastaSistema(String pasta, boolean encontrada) {}
+
+    /** O .md de regras de negócio que a IA usa na triagem: nome do arquivo e se ele existe. Null se não configurado. */
+    public record RegrasNegocio(String arquivo, boolean encontrado) {}
 
     public static ProjetoDetalheResponse de(
-            Projeto projeto, StatusProjeto status, String baseUrl, List<String> specs, List<ScriptExecucao> scripts) {
+            Projeto projeto, StatusProjeto status, String baseUrl, List<String> specs, List<ScriptExecucao> scripts,
+            boolean regrasEncontradas) {
         return new ProjetoDetalheResponse(
                 projeto.id(),
                 projeto.nome(),
@@ -32,6 +42,11 @@ public record ProjetoDetalheResponse(
                 baseUrl,
                 projeto.navegadores(),
                 specs,
-                scripts);
+                scripts,
+                projeto.arquivoRegras() == null ? null
+                        : new RegrasNegocio(projeto.arquivoRegras().getFileName().toString(), regrasEncontradas),
+                projeto.codigoSistema().stream()
+                        .map(p -> new PastaSistema(p.getFileName().toString(), Files.isDirectory(p)))
+                        .toList());
     }
 }

@@ -21,7 +21,10 @@ import {
 
 /** Tela /triagem e /triagem/:resultadoId — fila à esquerda, detalhe à direita. */
 export function TriagemPage() {
-  const { id: projeto } = useProjetoAtual()
+  const { id: projeto, detalhe } = useProjetoAtual()
+  const regras = detalhe.data?.regras
+  const pastasSistema = detalhe.data?.codigoSistema ?? []
+  const pastasAchadas = pastasSistema.filter((p) => p.encontrada)
   const { resultadoId } = useParams()
   const navigate = useNavigate()
   const { data: config } = useConfiguracoes()
@@ -45,19 +48,44 @@ export function TriagemPage() {
   // Confirmação da última publicação. Fica aqui (fora do Detalhe) porque o
   // Detalhe é recriado quando a triagem muda, e a mensagem sumiria junto.
   const [publicado, setPublicado] = useState<{ resultadoId: number; pub: Publicacao } | null>(null)
+  // Estado do envio ao Jira, também aqui fora: salvar a triagem atualiza a
+  // fila e RECRIA o Detalhe (a key inclui atualizadaEm). Se o estado ficasse
+  // dentro dele, o botão "esqueceria" que está enviando no meio do caminho.
+  const [envio, setEnvio] = useState<{ resultadoId: number; etapa: EtapaEnvio } | null>(null)
+  const emEnvio = useRef(false)
 
   return (
     <>
       <header className="page-head">
         <div>
           <h1>Triagem IA</h1>
-          <p>Testes que falham na execução mais recente. A IA lê o erro e o código do spec e sugere o bug.</p>
+          <p>Testes que falham na execução mais recente. A IA lê o erro, o código do spec, as regras de negócio e o código do sistema, e sugere o bug.</p>
         </div>
-        {config?.ia.ativa ? (
-          <span className="pill ok">IA ativa · {config.ia.provedor === 'gemini' ? config.ia.modeloGemini : config.ia.modeloAnthropic}</span>
-        ) : (
-          <Link className="pill warn" to="/configuracoes">Sem chave · modo heurístico</Link>
-        )}
+        <div className="btn-row">
+          {regras && (
+            <span
+              className={`pill ${regras.encontrado ? 'ok' : 'warn'}`}
+              title={regras.encontrado ? 'A IA usa este arquivo para decidir se a falha é do sistema ou do teste' : 'Arquivo configurado, mas não encontrado'}
+            >
+              {regras.encontrado ? `Regras de negócio · ${regras.arquivo}` : `Sem regras · ${regras.arquivo} não encontrado`}
+            </span>
+          )}
+          {pastasSistema.length > 0 && (
+            <span
+              className={`pill ${pastasAchadas.length ? 'ok' : 'warn'}`}
+              title={pastasSistema.map((p) => `${p.pasta}: ${p.encontrada ? 'encontrada' : 'não encontrada'}`).join(' · ')}
+            >
+              {pastasAchadas.length
+                ? `Código do sistema · ${pastasAchadas.map((p) => p.pasta).join(', ')}`
+                : 'Código do sistema não encontrado'}
+            </span>
+          )}
+          {config?.ia.ativa ? (
+            <span className="pill ok">IA ativa · {config.ia.provedor === 'gemini' ? config.ia.modeloGemini : config.ia.modeloAnthropic}</span>
+          ) : (
+            <Link className="pill warn" to="/configuracoes">Sem chave · modo heurístico</Link>
+          )}
+        </div>
       </header>
 
       {isPending && <Carregando />}
@@ -130,6 +158,9 @@ export function TriagemPage() {
                 projeto={projeto}
                 iaAtiva={!!config?.ia.ativa}
                 onPublicado={(pub) => setPublicado({ resultadoId: selecionada.resultadoId, pub })}
+                etapaEnvio={envio?.resultadoId === selecionada.resultadoId ? envio.etapa : null}
+                setEtapaEnvio={(etapa) => setEnvio(etapa ? { resultadoId: selecionada.resultadoId, etapa } : null)}
+                emEnvio={emEnvio}
               />
             </div>
           )}
@@ -139,11 +170,16 @@ export function TriagemPage() {
   )
 }
 
-function Detalhe({ falha, projeto, iaAtiva, onPublicado }: {
+type EtapaEnvio = 'salvando' | 'publicando'
+
+function Detalhe({ falha, projeto, iaAtiva, onPublicado, etapaEnvio, setEtapaEnvio, emEnvio }: {
   falha: FalhaTriagem
   projeto: string
   iaAtiva: boolean
   onPublicado: (pub: Publicacao) => void
+  etapaEnvio: EtapaEnvio | null
+  setEtapaEnvio: (etapa: EtapaEnvio | null) => void
+  emEnvio: { current: boolean }
 }) {
   const t = falha.triagem
   const analisar = useAnalisar(projeto)
@@ -174,11 +210,11 @@ function Detalhe({ falha, projeto, iaAtiva, onPublicado }: {
   const gravar = (c: Classificacao | '' = classificacao) => salvar.mutate({ resultadoId: falha.resultadoId, revisao: revisao(c) })
 
   // Publica o que está NA TELA: salva a revisão primeiro e só então cria o bug.
-  // "enviando" cobre as DUAS etapas: o botão mostra o carregamento desde o
+  // O envio cobre as DUAS etapas: o botão mostra o carregamento desde o
   // clique (e não só quando o Jira é chamado). O ref barra um segundo clique
   // antes de o React redesenhar: cada clique a mais criaria um bug duplicado.
-  const [enviando, setEnviando] = useState<'salvando' | 'publicando' | null>(null)
-  const emEnvio = useRef(false)
+  const enviando = etapaEnvio
+  const setEnviando = setEtapaEnvio
   const publicarNoJira = async () => {
     if (emEnvio.current) return
     emEnvio.current = true

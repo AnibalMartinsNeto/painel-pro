@@ -26,6 +26,8 @@ public class AssistenteTriagem {
 
     private static final int LIMITE_CODIGO = 12_000; // caracteres do spec enviados à IA
     private static final int LIMITE_ERRO = 4_000;
+    private static final int LIMITE_REGRAS = 15_000; // caracteres do .md de regras de negócio
+    private static final int LIMITE_SISTEMA = BuscadorCodigo.LIMITE_TOTAL + 1_000;
 
     private final ConfiguracaoService config;
     private final List<ProvedorIa> provedores;
@@ -79,7 +81,7 @@ public class AssistenteTriagem {
                 \"\"\"
                 %s
                 \"\"\"
-
+                %s%s
                 Responda SOMENTE com um JSON válido, sem markdown, no formato:
                 {
                   "titulo": "título curto e objetivo do bug",
@@ -88,11 +90,53 @@ public class AssistenteTriagem {
                   "esperado": "comportamento esperado",
                   "encontrado": "comportamento encontrado",
                   "passos": ["passo 1", "passo 2"],
-                  "analise": "1 a 3 frases: causa provável e se parece defeito do app ou do teste"
+                  "analise": "1 a 3 frases: causa provável, se parece defeito do app ou do teste e, se houver, o código da regra de negócio envolvida"
                 }
                 """.formatted(
                 f.ferramenta(), f.spec(), f.titulo(), valor(f.tipoErro()), valor(f.navegador()),
-                cortar(f.mensagemErro(), LIMITE_ERRO), cortar(f.codigoSpec(), LIMITE_CODIGO));
+                cortar(f.mensagemErro(), LIMITE_ERRO), cortar(f.codigoSpec(), LIMITE_CODIGO), secaoRegras(f.regrasNegocio()),
+                secaoSistema(f.codigoSistema()));
+    }
+
+    /**
+     * Trechos do código do sistema testado achados pelo BuscadorCodigo (rotas,
+     * data-testid e textos do teste). Com eles a IA aponta ONDE está o defeito.
+     */
+    static String secaoSistema(String trechos) {
+        if (trechos == null || trechos.isBlank()) return "";
+        return """
+
+                Trechos do código-fonte do SISTEMA TESTADO ligados a esta falha (linhas numeradas):
+                \"\"\"
+                %s
+                \"\"\"
+
+                Se os trechos mostrarem a causa, cite o arquivo e a linha na análise (ex.: showUsers.js:42).
+                Não invente código que não foi mostrado.
+
+                """.formatted(cortar(trechos, LIMITE_SISTEMA));
+    }
+
+    /**
+     * Regras de negócio do sistema testado: a "fonte da verdade" para decidir
+     * de quem é o defeito. Sem elas, a IA só tem o teste para saber o que é
+     * esperado, e não consegue dizer se o próprio teste está errado.
+     */
+    static String secaoRegras(String regras) {
+        if (regras == null || regras.isBlank()) return "";
+        return """
+
+                Regras de negócio do sistema testado (fonte da verdade sobre o comportamento esperado):
+                \"\"\"
+                %s
+                \"\"\"
+
+                Use as regras para classificar:
+                - a aplicação viola uma regra → BUG_APLICACAO, e cite o código da regra (ex.: USU-09) na análise;
+                - o teste espera algo que contradiz as regras ou que elas não exigem → FALHA_AUTOMACAO;
+                - a falha vem do ambiente (rede, 429, serviço fora) → AMBIENTE.
+
+                """.formatted(cortar(regras, LIMITE_REGRAS));
     }
 
     /** Lê o JSON da IA de forma TOLERANTE: ignora texto/markdown em volta e valores fora do esperado. */

@@ -44,6 +44,7 @@ public class ProjetoController {
                 service.status(projeto),
                 service.baseUrl(projeto).orElse(null),
                 specs,
-                service.listarScripts(projeto, specs));
+                service.listarScripts(projeto, specs),
+                service.regras(projeto).isPresent());
     }
 }

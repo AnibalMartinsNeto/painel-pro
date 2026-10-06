@@ -24,7 +24,10 @@ public class ConfigProjetoRepository implements ProjetoRepository {
                         Path.of(c.diretorio()).toAbsolutePath().normalize(),
                         c.pastaSpecs(),
                         Pattern.compile(c.padraoSpec()),
-                        c.navegadores()))
+                        c.navegadores(),
+                        c.arquivoRegras() == null || c.arquivoRegras().isBlank()
+                                ? null : Path.of(c.arquivoRegras()).toAbsolutePath().normalize(),
+                        c.codigoSistema().stream().map(p -> Path.of(p).toAbsolutePath().normalize()).toList()))
                 .toList();
     }
 

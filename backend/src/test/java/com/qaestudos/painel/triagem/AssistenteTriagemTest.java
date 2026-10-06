@@ -61,6 +61,40 @@ class AssistenteTriagemTest {
     }
 
     @Test
+    void comRegrasDeNegocioOPromptTrazAsRegrasEComoUsalasParaClassificar() {
+        respostaDaIa = "{\"titulo\":\"Senha exibida\",\"classificacao\":\"BUG_APLICACAO\"}";
+        var comRegras = new ContextoFalha(falha.ferramenta(), falha.spec(), falha.titulo(), falha.mensagemErro(),
+                falha.tipoErro(), falha.navegador(), falha.codigoSpec(), "- **USU-09** – A senha nunca pode ser exibida (100% obrigatório).");
+
+        assistente.gerarRascunho(comRegras);
+
+        assertThat(promptRecebido).contains("Regras de negócio do sistema testado", "USU-09", "100% obrigatório",
+                "cite o código da regra", "FALHA_AUTOMACAO");
+    }
+
+    @Test
+    void comTrechosDoSistemaOPromptPedeParaCitarArquivoELinha() {
+        respostaDaIa = "{\"titulo\":\"Senha exibida\"}";
+        var comCodigo = new ContextoFalha(falha.ferramenta(), falha.spec(), falha.titulo(), falha.mensagemErro(),
+                falha.tipoErro(), falha.navegador(), falha.codigoSpec(), null,
+                "Arquivo: front/src/views/admin/showUsers.js\n  42| <td>{ person.password }</td>");
+
+        assistente.gerarRascunho(comCodigo);
+
+        assertThat(promptRecebido).contains("código-fonte do SISTEMA TESTADO", "showUsers.js", "42| <td>{ person.password }</td>",
+                "cite o arquivo e a linha");
+    }
+
+    @Test
+    void semRegrasDeNegocioOPromptNaoTemASecao() {
+        respostaDaIa = "{\"titulo\":\"x\"}";
+
+        assistente.gerarRascunho(falha);
+
+        assertThat(promptRecebido).doesNotContain("Regras de negócio");
+    }
+
+    @Test
     void toleraMarkdownEmVoltaEValoresForaDaLista() {
         respostaDaIa = "Claro! Aqui está:\n```json\n{\"titulo\":\"T\",\"classificacao\":\"TALVEZ\",\"severidade\":\"media\"}\n```";
 

@@ -72,6 +72,19 @@ public class ProjetoService {
         }).toList();
     }
 
+    /**
+     * Conteúdo do arquivo de regras de negócio do projeto (o .md que a IA
+     * usa na triagem), ou vazio se o projeto não tem/o arquivo não existe.
+     */
+    public Optional<String> regras(Projeto projeto) {
+        if (projeto.arquivoRegras() == null) return Optional.empty();
+        try {
+            return Optional.of(Files.readString(projeto.arquivoRegras())).filter(r -> !r.isBlank());
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+    }
+
     /** URL da aplicação testada, lida do arquivo de configuração da ferramenta. */
     public Optional<String> baseUrl(Projeto projeto) {
         String arquivo = switch (projeto.tipo()) {

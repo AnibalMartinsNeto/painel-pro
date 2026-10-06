@@ -31,6 +31,10 @@ export interface ProjetoDetalhe extends ProjetoResumo {
   navegadores: string[]
   specs: string[]
   scripts: ScriptExecucao[]
+  /** Arquivo .md de regras de negócio que a IA usa na triagem (null: não configurado). */
+  regras?: { arquivo: string; encontrado: boolean } | null
+  /** Pastas com o código-fonte do sistema testado que a IA consulta na triagem. */
+  codigoSistema?: { pasta: string; encontrada: boolean }[]
 }
 
 export const listarProjetos = () => apiGet<ProjetoResumo[]>('/api/projetos')

@@ -90,13 +90,25 @@ public class TriagemService {
         ResultadoTeste r = resultados.buscarComExecucao(resultadoId).orElseThrow(() -> naoEncontrado(resultadoId));
         Execucao e = r.getExecucao();
         Projeto projeto = projetos.buscar(e.getProjetoId());
+        String codigoSpec = lerCodigo(projeto.diretorio().resolve(r.getSpec()));
         var contexto = new ContextoFalha(projeto.nome(), r.getSpec(), r.getTitulo(), r.getMensagemErro(), r.getTipoErro(),
-                e.getNavegador(), lerCodigo(projeto.diretorio().resolve(r.getSpec())));
+                e.getNavegador(), codigoSpec, projetos.regras(projeto).orElse(null),
+                trechosDoSistema(projeto, r.getSpec(), codigoSpec, r.getTitulo(), r.getMensagemErro()));
         return new Alvo(r.getId(), e.getProjetoId(), r.getChave(), contexto);
     }
 
     private Triagem obterOuCriar(String projetoId, String chave) {
         return triagens.findByProjetoIdAndChaveTeste(projetoId, chave).orElseGet(() -> new Triagem(projetoId, chave));
+    }
+
+    /** Trechos do código do sistema testado ligados à falha, ou null (sem pastas configuradas, nada achado ou erro). */
+    private static String trechosDoSistema(Projeto projeto, String spec, String codigoSpec, String titulo, String mensagemErro) {
+        try {
+            var achados = BuscadorCodigo.buscar(projeto.diretorio(), spec, codigoSpec, titulo, mensagemErro, projeto.codigoSistema());
+            return achados.vazio() ? null : achados.formatar();
+        } catch (RuntimeException e) {
+            return null; // a busca é um bônus: se falhar, a triagem segue sem ela
+        }
     }
 
     private static String lerCodigo(Path arquivo) {
