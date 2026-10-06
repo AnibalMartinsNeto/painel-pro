@@ -56,7 +56,6 @@ beforeEach(() => {
         { id: 2, spec: 'cypress/e2e/user-behavior-matrix.cy.js', titulo: 'Matriz › problem_user › imagens', status: 'FALHOU', duracaoMs: 66, mensagemErro: 'AssertionError: imagens duplicadas', tipoErro: 'Asserção' },
       ],
     },
-    '/api/importacoes/painel-node': { importadas: 5, ignoradas: 0, erros: [] },
     '/api/execucoes/em-andamento': [204, null],
     '/api/execucoes': { ...execucao, id: 8, status: 'EM_ANDAMENTO' },
     '/api/configuracoes': configuracoes,
@@ -321,7 +320,8 @@ describe('Relatórios', () => {
     const totais = await screen.findByLabelText('Totais')
     expect(await within(totais).findByText('35')).toBeInTheDocument()
     expect(within(totais).getByText('2min 5s')).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'Aprovação por execução' })).toBeInTheDocument()
+    const grafico = screen.getByRole('img', { name: 'Resultado dos testes por execução' })
+    expect(within(grafico).getByText('1/2')).toBeInTheDocument() // aprovados/total em cima da barra
     expect(screen.getByRole('link', { name: 'imagens' })).toHaveAttribute('href', '/triagem/2')
     expect(screen.getByText('instável')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Exportar CSV' })).toHaveAttribute('href', '/api/relatorios/execucoes.csv?projeto=cypress')
@@ -399,6 +399,16 @@ describe('Seletor de projeto', () => {
 })
 
 describe('Execuções', () => {
+  it('abre com todos os specs desmarcados e o botão de executar desabilitado', async () => {
+    renderComApp(<App />, { rota: '/execucoes' })
+
+    const specs = await screen.findAllByRole('checkbox', { name: /\.cy\.js/ })
+    expect(specs).toHaveLength(3)
+    specs.forEach((c) => expect(c).not.toBeChecked())
+    expect(screen.getByText('Selecione ao menos um spec')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Executar selecionados/ })).toBeDisabled()
+  })
+
   it('a seleção rápida marca os specs do script escolhido', async () => {
     const user = userEvent.setup()
     renderComApp(<App />, { rota: '/execucoes' })
@@ -410,16 +420,11 @@ describe('Execuções', () => {
     expect(screen.getByText('1 spec selecionado')).toBeInTheDocument()
   })
 
-  it('lista o histórico e importa do painel Node com POST', async () => {
-    const user = userEvent.setup()
+  it('lista o histórico sem o botão de importar do painel Node', async () => {
     renderComApp(<App />, { rota: '/execucoes' })
 
-    expect(await screen.findByRole('link', { name: /test:diagnostics/ })).toHaveTextContent('importada do painel Node')
-
-    await user.click(screen.getByRole('button', { name: 'Importar do painel Node' }))
-
-    expect(await screen.findByText(/5 importadas/)).toBeInTheDocument()
-    expect(fetchFalso).toHaveBeenCalledWith('/api/importacoes/painel-node', expect.objectContaining({ method: 'POST' }))
+    expect(await screen.findByRole('link', { name: /test:diagnostics/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Importar do painel Node/ })).not.toBeInTheDocument()
   })
 
   it('detalhe agrupa por spec e mostra o erro da falha', async () => {
@@ -476,7 +481,8 @@ describe('Execuções', () => {
     const user = userEvent.setup()
     renderComApp(<App />, { rota: '/execucoes' })
 
-    await user.click(await screen.findByRole('button', { name: /Executar selecionados/ }))
+    await user.click(await screen.findByRole('checkbox', { name: /login/ }))
+    await user.click(screen.getByRole('button', { name: /Executar selecionados/ }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Já existe uma execução em andamento.')
   })

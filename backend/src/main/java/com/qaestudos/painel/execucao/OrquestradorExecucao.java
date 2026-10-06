@@ -152,6 +152,11 @@ public class OrquestradorExecucao {
         ProcessBuilder pb = new ProcessBuilder(etapa.comando())
                 .directory(projeto.diretorio().toFile())
                 .redirectErrorStream(true); // junta stderr no stdout: um único fluxo de log
+        // Sem cores ANSI no log. FORCE_COLOR=0 já basta para as ferramentas Node;
+        // um NO_COLOR herdado junto com ele faz o Node imprimir um aviso a cada
+        // execução ("NO_COLOR is ignored due to FORCE_COLOR"). O k6 recoloca o
+        // NO_COLOR dele pelo ambiente da etapa.
+        pb.environment().remove("NO_COLOR");
         pb.environment().put("FORCE_COLOR", "0");
         pb.environment().putAll(etapa.ambiente());
 

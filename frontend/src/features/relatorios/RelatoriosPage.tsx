@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Badge } from '../../components/Badge'
 import { AvisoProjeto, ErroApi } from '../../components/Estado'
@@ -69,7 +70,7 @@ export function RelatoriosPage() {
 
       <section className="card">
         <div className="card-head">
-          <span className="eyebrow">Aprovação por execução</span>
+          <span className="eyebrow">Resultado por execução</span>
           {!!r?.aprovacaoPorExecucao.length && <span className="hint">últimas {r.aprovacaoPorExecucao.length}</span>}
         </div>
         {r?.aprovacaoPorExecucao.length ? (
@@ -153,51 +154,141 @@ function TabelaFalhas({ testes }: { testes: TesteComFalha[] }) {
   )
 }
 
-/** Barras em SVG: % de aprovação de cada execução; clicar abre a execução. */
+const SEGMENTOS = [
+  { campo: 'aprovados', rotulo: 'Passou', cor: 'var(--green)' },
+  { campo: 'reprovados', rotulo: 'Falhou', cor: 'var(--red)' },
+  { campo: 'pulados', rotulo: 'Pulado', cor: 'var(--faint)' },
+] as const
+
+/** Escala "redonda" para o eixo: 7 → 8, 17 → 20, 35 → 40. */
+function topoDoEixo(maximo: number) {
+  const passo = maximo <= 10 ? 2 : maximo <= 50 ? 10 : 50
+  return Math.max(passo, Math.ceil(maximo / passo) * passo)
+}
+
+/**
+ * Barras empilhadas em SVG: quantos testes passaram, falharam e foram
+ * pulados em cada execução. A altura é a CONTAGEM real (uma falha em 1
+ * teste não parece igual a 50 falhas), o rótulo em cima é aprovados/total
+ * e o mouse mostra o detalhe. Clicar abre a execução.
+ */
 function GraficoAprovacao({ execucoes }: { execucoes: ExecucaoResumo[] }) {
   const navigate = useNavigate()
-  const W = 700
-  const H = 180
-  const pad = { l: 34, r: 8, t: 10, b: 22 }
-  const bw = Math.min(56, (W - pad.l - pad.r) / execucoes.length)
-  const y = (v: number) => pad.t + (H - pad.t - pad.b) * (1 - v / 100)
+  const [foco, setFoco] = useState<number | null>(null)
+  const W = 720
+  const H = 220
+  const pad = { l: 34, r: 8, t: 22, b: 34 }
+  const topo = topoDoEixo(Math.max(1, ...execucoes.map((e) => e.total)))
+  const largura = (W - pad.l - pad.r) / execucoes.length
+  const bw = Math.min(40, largura * 0.62)
+  const y = (v: number) => pad.t + (H - pad.t - pad.b) * (1 - v / topo)
+  const xCentro = (i: number) => pad.l + i * largura + largura / 2
+  const marcas = [0, topo / 2, topo]
+  // Com muitas barras, rotula só algumas datas para não encavalar.
+  const cadaQuantas = Math.ceil(execucoes.length / 12)
+
+  const avaliados = execucoes.reduce((a, e) => a + e.aprovados + e.reprovados, 0)
+  const aprovados = execucoes.reduce((a, e) => a + e.aprovados, 0)
+  const comFalha = execucoes.filter((e) => e.reprovados > 0).length
+  const emFoco = foco == null ? null : execucoes[foco]
 
   return (
-    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Aprovação por execução">
-      {[0, 50, 100].map((v) => (
-        <g key={v}>
-          <line className="gridline" x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} />
-          <text x={pad.l - 6} y={y(v) + 3} textAnchor="end">
-            {v}%
-          </text>
-        </g>
-      ))}
-      {execucoes.map((e, i) => {
-        const avaliados = e.aprovados + e.reprovados
-        const pct = avaliados ? (e.aprovados / avaliados) * 100 : 0
-        const cor = e.status === 'PASSOU' ? 'var(--green)' : pct >= 70 ? 'var(--amber)' : 'var(--red)'
-        return (
-          <g key={e.id}>
-            <rect
-              x={pad.l + i * bw + bw * 0.18}
-              y={y(pct)}
-              width={Math.max(2, bw * 0.64)}
-              height={Math.max(1, y(0) - y(pct))}
-              rx={3}
-              fill={cor}
-              style={{ cursor: 'pointer' }}
-              onClick={() => navigate(`/execucoes/${e.id}`)}
-            >
-              <title>{`#${e.id} · ${fmtData(e.iniciadaEm)} — ${Math.round(pct)}% (${e.aprovados}/${avaliados})`}</title>
-            </rect>
-            {execucoes.length <= 12 && (
-              <text x={pad.l + i * bw + bw / 2} y={H - 6} textAnchor="middle">
-                {new Date(e.iniciadaEm).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+    <>
+      <div className="grafico-resumo">
+        <span>
+          <b>{avaliados ? `${Math.round((aprovados / avaliados) * 100)}%` : '—'}</b> dos testes passaram
+        </span>
+        <span>
+          <b>{comFalha}</b> de {execucoes.length} execuções com falha
+        </span>
+        <span className="grafico-legenda" aria-label="Legenda">
+          {SEGMENTOS.map((s) => (
+            <span key={s.campo}>
+              <i style={{ background: s.cor }} /> {s.rotulo}
+            </span>
+          ))}
+        </span>
+      </div>
+      <div className="grafico-area" onMouseLeave={() => setFoco(null)}>
+        <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Resultado dos testes por execução">
+          {marcas.map((v) => (
+            <g key={v}>
+              <line className="gridline" x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} />
+              <text x={pad.l - 6} y={y(v) + 3} textAnchor="end">
+                {v}
               </text>
-            )}
-          </g>
-        )
-      })}
-    </svg>
+            </g>
+          ))}
+          {execucoes.map((e, i) => {
+            let base = 0
+            const ativo = foco === i
+            return (
+              <g
+                key={e.id}
+                style={{ cursor: 'pointer', opacity: foco == null || ativo ? 1 : 0.45 }}
+                onMouseEnter={() => setFoco(i)}
+                onClick={() => navigate(`/execucoes/${e.id}`)}
+              >
+                {/* área de clique da coluna inteira, maior que a barra */}
+                <rect x={pad.l + i * largura} y={pad.t} width={largura} height={H - pad.t - pad.b} fill="transparent" />
+                {SEGMENTOS.map((s) => {
+                  const v = e[s.campo]
+                  if (!v) return null
+                  const y0 = y(base)
+                  base += v
+                  const alto = y0 - y(base)
+                  return (
+                    <rect
+                      key={s.campo}
+                      x={xCentro(i) - bw / 2}
+                      y={y(base)}
+                      width={bw}
+                      // 2px de respiro entre os segmentos empilhados
+                      height={Math.max(1, alto - (base < e.total ? 2 : 0))}
+                      rx={2}
+                      fill={s.cor}
+                    />
+                  )
+                })}
+                <text x={xCentro(i)} y={y(e.total) - 6} textAnchor="middle" className={ativo ? 'forte' : undefined}>
+                  {e.aprovados}/{e.total}
+                </text>
+                {(i % cadaQuantas === 0 || ativo) && (
+                  <>
+                    <text x={xCentro(i)} y={H - 18} textAnchor="middle" className={ativo ? 'forte' : undefined}>
+                      #{e.id}
+                    </text>
+                    <text x={xCentro(i)} y={H - 5} textAnchor="middle">
+                      {new Date(e.iniciadaEm).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                    </text>
+                  </>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+        {emFoco && foco != null && (
+          <div
+            className="grafico-dica"
+            role="tooltip"
+            style={{
+              left: `${(xCentro(foco) / W) * 100}%`,
+              transform: `translateX(${foco > execucoes.length / 2 ? '-100%' : '0'})`,
+            }}
+          >
+            <b>
+              #{emFoco.id} · {emFoco.script ?? 'execução personalizada'}
+            </b>
+            <span>
+              {fmtData(emFoco.iniciadaEm)} · {emFoco.navegador ?? '—'} · {fmtDuracao(emFoco.duracaoMs)}
+            </span>
+            <span>
+              {emFoco.aprovados} passaram · {emFoco.reprovados} falharam · {emFoco.pulados} pulados
+            </span>
+            <span className="hint">clique para abrir a execução</span>
+          </div>
+        )}
+      </div>
+    </>
   )
 }

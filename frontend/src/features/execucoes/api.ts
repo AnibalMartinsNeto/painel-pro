@@ -51,12 +51,6 @@ export interface ResumoProjeto {
   ultimaPorScript: Record<string, ExecucaoResumo>
 }
 
-export interface ResultadoImportacao {
-  importadas: number
-  ignoradas: number
-  erros: string[]
-}
-
 export function useExecucoes(projeto: string) {
   return useQuery({
     queryKey: ['execucoes', projeto],
@@ -143,15 +137,3 @@ export function useLogAoVivo(id: number | null) {
   return { linhas, statusFinal }
 }
 
-/**
- * useMutation: para chamadas que ALTERAM dados (POST/PUT/DELETE). Ao
- * terminar, invalida o cache de ['execucoes'] — todas as telas que mostram
- * execuções buscam de novo e se atualizam sozinhas.
- */
-export function useImportarPainelNode() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => apiPost<ResultadoImportacao>('/api/importacoes/painel-node'),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['execucoes'] }),
-  })
-}

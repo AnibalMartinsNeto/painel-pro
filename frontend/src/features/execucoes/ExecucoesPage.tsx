@@ -9,7 +9,6 @@ import {
   useEmAndamento,
   useExecucoes,
   useIniciarExecucao,
-  useImportarPainelNode,
   useLogAoVivo,
   type ExecucaoResumo,
 } from './api'
@@ -54,8 +53,9 @@ export function ExecucoesPage() {
 function NovaExecucao({ projeto, emAndamento }: { projeto: ProjetoDetalhe; emAndamento: ExecucaoResumo | null }) {
   const isK6 = projeto.tipo === 'K6'
   const inicial = projeto.scripts[0]
-  const [script, setScript] = useState<string | null>(inicial?.nome ?? null)
-  const [selecionados, setSelecionados] = useState<Set<string>>(() => new Set(inicial?.specs ?? projeto.specs.slice(0, 1)))
+  // Começa sem nada marcado: o QA escolhe os specs (ou um script) a executar.
+  const [script, setScript] = useState<string | null>(null)
+  const [selecionados, setSelecionados] = useState<Set<string>>(() => new Set())
   const [navegador, setNavegador] = useState(inicial?.navegador ?? projeto.navegadores[0] ?? '')
   const [retentativas, setRetentativas] = useState(0)
   const [abrirNavegador, setAbrirNavegador] = useState(false)
@@ -237,35 +237,16 @@ function classeLinha(l: string) {
 /** Lista das execuções gravadas no PostgreSQL (GET /api/execucoes). */
 function Historico({ projeto }: { projeto: string }) {
   const { data: execucoes, isPending } = useExecucoes(projeto)
-  const importar = useImportarPainelNode()
 
   return (
     <section className="card flat">
       <div className="card-head" style={{ padding: '16px 16px 0' }}>
         <span className="eyebrow">Histórico</span>
-        <div className="btn-row">
-          {importar.data && (
-            <span className="hint" role="status">
-              {importar.data.importadas} importadas · {importar.data.ignoradas} já existiam
-              {importar.data.erros.length > 0 && ` · ${importar.data.erros.length} com erro`}
-            </span>
-          )}
-          {importar.error && (
-            <span className="hint" role="alert" style={{ color: 'var(--red)' }}>
-              {importar.error.message}
-            </span>
-          )}
-          <button className="btn sm" type="button" onClick={() => importar.mutate()} disabled={importar.isPending}>
-            {importar.isPending ? 'Importando…' : 'Importar do painel Node'}
-          </button>
-          <span className="hint">{plural(execucoes?.length ?? 0, 'execução', 'execuções')}</span>
-        </div>
+        <span className="hint">{plural(execucoes?.length ?? 0, 'execução', 'execuções')}</span>
       </div>
       <div className="list" style={{ marginTop: 8 }}>
         {isPending && <div className="empty">Carregando…</div>}
-        {execucoes?.length === 0 && (
-          <div className="empty">Nenhuma execução registrada ainda. Use “Importar do painel Node” para trazer o histórico antigo.</div>
-        )}
+        {execucoes?.length === 0 && <div className="empty">Nenhuma execução registrada ainda.</div>}
         {execucoes?.map((e) => (
           <ItemExecucao key={e.id} e={e} />
         ))}
