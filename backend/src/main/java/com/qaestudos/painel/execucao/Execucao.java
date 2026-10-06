@@ -57,6 +57,7 @@ public class Execucao {
     private String origem;
 
     private String log;
+    private boolean dev; // execução de teste: fora das métricas (ver V7)
 
     // Um-para-muitos: uma execução tem vários resultados. cascade=ALL faz o
     // save da execução salvar também os resultados; orphanRemoval apaga o
@@ -74,6 +75,11 @@ public class Execucao {
         this.navegador = navegador;
         this.iniciadaEm = iniciadaEm;
         this.status = StatusExecucao.EM_ANDAMENTO;
+    }
+
+    /** Execução de teste ("dev"): fica no histórico, mas fora das métricas, relatórios e triagem. */
+    public void marcarComoDev() {
+        this.dev = true;
     }
 
     /** Adiciona um resultado mantendo os dois lados da relação coerentes. */
@@ -134,5 +140,6 @@ public class Execucao {
     public String getErro() { return erro; }
     public String getOrigem() { return origem; }
     public String getLog() { return log; }
+    public boolean isDev() { return dev; }
     public List<ResultadoTeste> getResultados() { return Collections.unmodifiableList(resultados); }
 }

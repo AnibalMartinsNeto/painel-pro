@@ -34,7 +34,9 @@ public class ExecucaoGravacao {
     }
 
     public Execucao criar(SolicitacaoExecucao s) {
-        return repository.save(new Execucao(s.projetoId(), s.script(), s.navegador(), clock.instant()));
+        Execucao e = new Execucao(s.projetoId(), s.script(), s.navegador(), clock.instant());
+        if (s.dev()) e.marcarComoDev();
+        return repository.save(e);
     }
 
     public Execucao concluir(Long id, StatusExecucao status, List<ResultadoTeste> resultados, String versao, String erro, String logTexto) {

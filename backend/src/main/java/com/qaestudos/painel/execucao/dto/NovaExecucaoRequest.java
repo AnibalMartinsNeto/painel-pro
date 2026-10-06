@@ -23,14 +23,17 @@ public record NovaExecucaoRequest(
         // Integer/Boolean (e não int/boolean): campos OPCIONAIS. Com
         // primitivos, o Jackson 3 recusa o JSON quando o campo não vem.
         @Min(0) @Max(3) Integer retentativas,
-        Boolean abrirNavegador) {
+        Boolean abrirNavegador,
+        // true = execução de teste ("dev"): fica fora das métricas.
+        Boolean dev) {
 
     public NovaExecucaoRequest {
         retentativas = retentativas == null ? 0 : retentativas;
         abrirNavegador = abrirNavegador != null && abrirNavegador;
+        dev = dev != null && dev;
     }
 
     public SolicitacaoExecucao paraSolicitacao() {
-        return new SolicitacaoExecucao(projeto, script, specs, navegador, retentativas, abrirNavegador);
+        return new SolicitacaoExecucao(projeto, script, specs, navegador, retentativas, abrirNavegador, dev);
     }
 }

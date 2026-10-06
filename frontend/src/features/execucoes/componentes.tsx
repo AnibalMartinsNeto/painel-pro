@@ -37,6 +37,7 @@ export function ItemExecucao({ e }: { e: ExecucaoResumo }) {
         <div className="li-sub">
           {fmtData(e.iniciadaEm)} · {e.navegador ?? '—'} · {fmtDuracao(e.duracaoMs)}
           {e.importada && ' · importada do painel Node'}
+          {e.dev && ' · teste (dev), fora das métricas'}
         </div>
       </div>
       {e.total > 0 && (

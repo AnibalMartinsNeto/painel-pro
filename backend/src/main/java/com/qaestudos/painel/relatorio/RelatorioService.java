@@ -76,12 +76,12 @@ public class RelatorioService {
         comFalha.sort(Comparator.comparingLong(TesteComFalha::falhas).reversed()
                 .thenComparing(TesteComFalha::ultimaFalha, Comparator.nullsLast(Comparator.reverseOrder())));
 
-        List<Execucao> ultimas = new ArrayList<>(execucoes.findTop24ByProjetoIdAndStatusInOrderByIniciadaEmDesc(
+        List<Execucao> ultimas = new ArrayList<>(execucoes.findTop24ByProjetoIdAndDevFalseAndStatusInOrderByIniciadaEmDesc(
                 projetoId, EnumSet.of(StatusExecucao.PASSOU, StatusExecucao.FALHOU)));
         ultimas.sort(Comparator.comparing(Execucao::getIniciadaEm)); // gráfico lê da esquerda (antiga) para a direita
 
         return new Relatorio(
-                execucoes.countByProjetoId(projetoId),
+                execucoes.countByProjetoIdAndDevFalse(projetoId),
                 historico.size(),
                 comFalha.size(),
                 historico.stream().filter(HistoricoTeste::instavel).count(),
@@ -94,13 +94,13 @@ public class RelatorioService {
     public String exportarCsv(String projetoId) {
         projetos.buscar(projetoId);
         StringBuilder csv = new StringBuilder("﻿");
-        csv.append("id;inicio;fim;status;script;navegador;testes;passaram;falharam;pulados;duracao_ms;importada\n");
+        csv.append("id;inicio;fim;status;script;navegador;testes;passaram;falharam;pulados;duracao_ms;importada;dev\n");
         for (Execucao e : execucoes.findByProjetoIdOrderByIniciadaEmDesc(projetoId)) {
             csv.append(String.join(";",
                     String.valueOf(e.getId()), texto(e.getIniciadaEm()), texto(e.getFinalizadaEm()), e.getStatus().name(),
                     celula(e.getScript()), celula(e.getNavegador()), String.valueOf(e.getTotal()),
                     String.valueOf(e.getAprovados()), String.valueOf(e.getReprovados()), String.valueOf(e.getPulados()),
-                    texto(e.getDuracaoMs()), e.getOrigem() != null ? "sim" : "nao"))
+                    texto(e.getDuracaoMs()), e.getOrigem() != null ? "sim" : "nao", e.isDev() ? "sim" : "nao"))
                     .append('\n');
         }
         return csv.toString();

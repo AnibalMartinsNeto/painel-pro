@@ -134,6 +134,7 @@ cd backend
 | `GET /api/execucoes?projeto=cypress` | Últimas 50 execuções do projeto |
 | `GET /api/execucoes/resumo?projeto=cypress` | Números da Visão geral (mês, aprovação, falhas por módulo) |
 | `GET /api/execucoes/{id}` | Execução com todos os resultados de teste |
+| `GET /api/execucoes/duracoes?projeto=` | Base da previsão de tempo: média de cada spec e tempo fixo de uma execução (só execuções reais) |
 | `POST /api/execucoes` | Dispara uma execução → 202; 400 se inválida; 409 se já houver uma rodando |
 | `GET /api/execucoes/em-andamento` | Execução rodando agora, ou 204 |
 | `GET /api/execucoes/{id}/log` | Log ao vivo (Server-Sent Events) |
@@ -143,6 +144,12 @@ cd backend
 | `GET /api/relatorios/execucoes.csv?projeto=cypress` | Todas as execuções do projeto em CSV (download) |
 | `POST /api/importacoes/painel-node` | Importa o histórico do painel Node de `C:\QA_Estudos\Painel\data\runs` (idempotente; propriedade `painel.importacao.pasta-painel-node`) |
 | `GET /actuator/health` | Saúde da aplicação |
+
+### Execução de teste (dev) e previsão de tempo
+
+- **Tipo de execução "Teste / dev"** (`"dev": true` no `POST /api/execucoes`): a execução fica no histórico com o selo, mas **fora** das métricas da Visão geral, dos Relatórios, da fila de triagem e da previsão. Serve para depurar sem sujar os números (coluna `execucao.dev`, migração V7).
+- **Previsão (~Xmin)** antes de rodar: soma da média de cada spec escolhido (eles rodam em sequência) + o tempo fixo médio de uma execução. Só aparece se **todos** os specs têm histórico; senão a tela diz quantos estão sem histórico, em vez de um número enganoso.
+- Specs com teste **instável** (já passou e já falhou) ganham o selo na tela de Execuções.
 
 ### Como uma execução acontece
 

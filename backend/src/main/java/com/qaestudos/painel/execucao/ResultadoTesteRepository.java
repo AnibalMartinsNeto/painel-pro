@@ -22,7 +22,7 @@ public interface ResultadoTesteRepository extends JpaRepository<ResultadoTeste, 
                 sum(case when r.status = com.qaestudos.painel.execucao.StatusTeste.FALHOU then 1L else 0L end),
                 sum(case when r.status = com.qaestudos.painel.execucao.StatusTeste.PASSOU then 1L else 0L end))
             from ResultadoTeste r
-            where r.execucao.projetoId = :projetoId
+            where r.execucao.projetoId = :projetoId and r.execucao.dev = false
             group by r.chave, r.spec, r.titulo
             """)
     List<HistoricoTeste> historicoPorTeste(@Param("projetoId") String projetoId);
@@ -30,7 +30,7 @@ public interface ResultadoTesteRepository extends JpaRepository<ResultadoTeste, 
     /** Falhas do projeto, da mais recente para a mais antiga, já com a execução carregada. */
     @Query("""
             select r from ResultadoTeste r join fetch r.execucao e
-            where e.projetoId = :projetoId and r.status = com.qaestudos.painel.execucao.StatusTeste.FALHOU
+            where e.projetoId = :projetoId and e.dev = false and r.status = com.qaestudos.painel.execucao.StatusTeste.FALHOU
             order by e.iniciadaEm desc, r.id desc
             """)
     List<ResultadoTeste> falhasRecentes(@Param("projetoId") String projetoId);

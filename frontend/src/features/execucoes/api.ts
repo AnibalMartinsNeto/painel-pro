@@ -20,6 +20,8 @@ export interface ExecucaoResumo {
   pulados: number
   duracaoMs: number | null
   importada: boolean
+  /** Execução de teste: fica no histórico, mas fora das métricas, relatórios e triagem. */
+  dev?: boolean
 }
 
 export interface ResultadoTeste {
@@ -81,6 +83,33 @@ export interface NovaExecucao {
   navegador: string | null
   retentativas: number
   abrirNavegador: boolean
+  dev?: boolean
+}
+
+/** Base da previsão de tempo: média de cada spec nas execuções reais + tempo fixo de uma execução. */
+export interface Duracoes {
+  tempoFixoMs: number
+  mediaPorSpecMs: Record<string, number>
+}
+
+export function useDuracoes(projeto: string) {
+  return useQuery({
+    queryKey: ['execucoes', projeto, 'duracoes'],
+    queryFn: () => apiGet<Duracoes>(`/api/execucoes/duracoes?projeto=${encodeURIComponent(projeto)}`),
+    enabled: !!projeto,
+  })
+}
+
+/**
+ * Previsão para um conjunto de specs: eles rodam em SEQUÊNCIA, então é a
+ * soma das médias + o tempo fixo. Só há previsão se TODOS tiverem histórico
+ * (uma soma parcial subestimaria o tempo sem avisar).
+ */
+export function preverDuracao(d: Duracoes | undefined, specs: string[]): { ms: number } | { semHistorico: number } | null {
+  if (!d || specs.length === 0) return null
+  const semHistorico = specs.filter((s) => d.mediaPorSpecMs[s] == null).length
+  if (semHistorico > 0) return { semHistorico }
+  return { ms: d.tempoFixoMs + specs.reduce((total, s) => total + d.mediaPorSpecMs[s], 0) }
 }
 
 /**

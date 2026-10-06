@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { AvisoProjeto, Carregando } from '../../components/Estado'
-import { plural } from '../../lib/formato'
+import { plural, fmtDuracao } from '../../lib/formato'
 import { useProjetoAtual } from '../projetos/ProjetoAtual'
 import type { ProjetoDetalhe } from '../projetos/api'
 import {
@@ -11,7 +11,11 @@ import {
   useIniciarExecucao,
   useLogAoVivo,
   type ExecucaoResumo,
+  useDuracoes,
+  preverDuracao,
+  type Duracoes,
 } from './api'
+import { useRelatorio } from '../relatorios/api'
 import { ItemExecucao, StatusBadge } from './componentes'
 
 export function ExecucoesPage() {
@@ -59,6 +63,11 @@ function NovaExecucao({ projeto, emAndamento }: { projeto: ProjetoDetalhe; emAnd
   const [navegador, setNavegador] = useState(inicial?.navegador ?? projeto.navegadores[0] ?? '')
   const [retentativas, setRetentativas] = useState(0)
   const [abrirNavegador, setAbrirNavegador] = useState(false)
+  const [dev, setDev] = useState(false)
+  const { data: duracoes } = useDuracoes(projeto.id)
+  const { data: relatorio } = useRelatorio(projeto.id)
+  // Spec instável: tem algum teste que já passou e já falhou (vem do relatório).
+  const specsInstaveis = new Set((relatorio?.testesComFalha ?? []).filter((t) => t.instavel).map((t) => t.spec))
   const iniciar = useIniciarExecucao()
   const cancelar = useCancelarExecucao()
 
@@ -86,6 +95,7 @@ function NovaExecucao({ projeto, emAndamento }: { projeto: ProjetoDetalhe; emAnd
       navegador: isK6 ? null : navegador,
       retentativas,
       abrirNavegador,
+      dev,
     })
 
   const n = selecionados.size
@@ -124,6 +134,12 @@ function NovaExecucao({ projeto, emAndamento }: { projeto: ProjetoDetalhe; emAnd
           <label key={s} className="check">
             <input type="checkbox" checked={selecionados.has(s)} onChange={() => alternar(s)} />{' '}
             {s.replace(/^(cypress\/e2e|tests)\//, '')}
+            {duracoes?.mediaPorSpecMs[s] != null && <span className="hint"> ~{fmtDuracao(duracoes.mediaPorSpecMs[s])}</span>}
+            {specsInstaveis.has(s) && (
+              <span className="badge warn" title="Tem teste que já passou e já falhou (ver Relatórios)" style={{ marginLeft: 6 }}>
+                instável
+              </span>
+            )}
           </label>
         ))}
       </div>
@@ -148,8 +164,11 @@ function NovaExecucao({ projeto, emAndamento }: { projeto: ProjetoDetalhe; emAnd
           </select>
         </div>
         <div className="field">
-          <label htmlFor="fEnv">Ambiente</label>
-          <input id="fEnv" className="input" defaultValue="Homologação" />
+          <label htmlFor="fModo">Tipo de execução</label>
+          <select id="fModo" className="input" value={dev ? 'dev' : 'real'} onChange={(e) => setDev(e.target.value === 'dev')}>
+            <option value="real">Real (conta nas métricas)</option>
+            <option value="dev">Teste / dev (fora das métricas)</option>
+          </select>
         </div>
         <div className="field">
           <label>&nbsp;</label>
@@ -181,7 +200,11 @@ function NovaExecucao({ projeto, emAndamento }: { projeto: ProjetoDetalhe; emAnd
               </svg>{' '}
               {iniciar.isPending ? 'Iniciando…' : 'Executar selecionados'}
             </button>
-            <span className="hint">{n ? plural(n, 'spec selecionado', 'specs selecionados') : 'Selecione ao menos um spec'}</span>
+            <span className="hint">
+              {n ? plural(n, 'spec selecionado', 'specs selecionados') : 'Selecione ao menos um spec'}
+              {n > 0 && <Previsao duracoes={duracoes} specs={[...selecionados]} />}
+              {dev && ' · execução de teste: não entra nas métricas'}
+            </span>
           </>
         )}
         {iniciar.error && (
@@ -264,4 +287,12 @@ function Historico({ projeto }: { projeto: string }) {
       </div>
     </section>
   )
+}
+
+/** "· previsão ~1min 20s", ou o aviso de que falta histórico de algum spec. */
+function Previsao({ duracoes, specs }: { duracoes?: Duracoes; specs: string[] }) {
+  const p = preverDuracao(duracoes, specs)
+  if (!p) return null
+  if ('semHistorico' in p) return <> · previsão: sem histórico de {plural(p.semHistorico, 'spec', 'specs')}</>
+  return <> · previsão ~{fmtDuracao(p.ms)}</>
 }

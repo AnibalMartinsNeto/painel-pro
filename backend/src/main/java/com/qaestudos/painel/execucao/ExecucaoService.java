@@ -69,16 +69,30 @@ public class ExecucaoService {
                         e.getKey(), e.getValue(), Math.round(e.getValue() * 100.0 / Math.max(1, periodo.reprovados()))))
                 .toList();
 
-        Optional<Execucao> ultima = repository.findFirstByProjetoIdAndStatusInOrderByIniciadaEmDesc(
+        Optional<Execucao> ultima = repository.findFirstByProjetoIdAndDevFalseAndStatusInOrderByIniciadaEmDesc(
                 projetoId, EnumSet.of(StatusExecucao.PASSOU, StatusExecucao.FALHOU));
 
         Map<String, Execucao> porScript = new LinkedHashMap<>();
         for (var script : projetoService.listarScripts(projeto, projetoService.listarSpecs(projeto))) {
-            repository.findFirstByProjetoIdAndScriptOrderByIniciadaEmDesc(projetoId, script.nome())
+            repository.findFirstByProjetoIdAndDevFalseAndScriptOrderByIniciadaEmDesc(projetoId, script.nome())
                     .ifPresent(e -> porScript.put(script.nome(), e));
         }
 
         return new ResumoProjeto(mes, periodo, modulos, ultima.orElse(null), porScript);
     }
 
+
+    /**
+     * Previsão de tempo: média de cada spec nas execuções reais + o tempo fixo
+     * médio de uma execução. O front soma os specs escolhidos (eles rodam em
+     * sequência) e só mostra a previsão se TODOS tiverem histórico.
+     */
+    public record Duracoes(long tempoFixoMs, Map<String, Long> mediaPorSpecMs) {}
+
+    public Duracoes duracoes(String projetoId) {
+        projetoService.buscar(projetoId); // 404 se o projeto não existir
+        Map<String, Long> porSpec = new LinkedHashMap<>();
+        for (var d : repository.mediaPorSpec(projetoId)) porSpec.put(d.getSpec(), d.getMediaMs());
+        return new Duracoes(repository.mediaTempoFixo(projetoId), porSpec);
+    }
 }

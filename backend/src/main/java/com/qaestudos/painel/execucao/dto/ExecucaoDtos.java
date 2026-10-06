@@ -25,12 +25,12 @@ public final class ExecucaoDtos {
     public record ExecucaoResumoResponse(
             Long id, String projetoId, String script, String navegador, StatusExecucao status,
             Instant iniciadaEm, Instant finalizadaEm, int total, int aprovados, int reprovados, int pulados,
-            Long duracaoMs, boolean importada) {
+            Long duracaoMs, boolean importada, boolean dev) {
 
         public static ExecucaoResumoResponse de(Execucao e) {
             return new ExecucaoResumoResponse(e.getId(), e.getProjetoId(), e.getScript(), e.getNavegador(), e.getStatus(),
                     e.getIniciadaEm(), e.getFinalizadaEm(), e.getTotal(), e.getAprovados(), e.getReprovados(),
-                    e.getPulados(), e.getDuracaoMs(), e.getOrigem() != null);
+                    e.getPulados(), e.getDuracaoMs(), e.getOrigem() != null, e.isDev());
         }
     }
 

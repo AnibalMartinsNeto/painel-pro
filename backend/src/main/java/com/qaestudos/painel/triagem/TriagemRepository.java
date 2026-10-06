@@ -63,6 +63,7 @@ public interface TriagemRepository extends JpaRepository<Triagem, Long> {
                 FROM resultado_teste r
                 JOIN execucao e ON e.id = r.execucao_id
                 WHERE e.projeto_id = :projetoId
+                  AND NOT e.dev
                   AND e.status IN ('PASSOU', 'FALHOU')
                 ORDER BY r.chave, e.iniciada_em DESC, r.id DESC
             ) ultima

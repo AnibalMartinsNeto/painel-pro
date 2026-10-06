@@ -82,6 +82,40 @@ class ExecucaoRepositoryTest {
     }
 
     @Test
+    void execucaoDevFicaForaDoResumoDaFalhaPorSpecEDaPrevisao(@Autowired ResultadoTesteRepository resultados) {
+        Instant agora = Instant.parse("2026-09-15T12:00:00Z");
+        repository.save(execucao("cypress", agora, StatusTeste.PASSOU, StatusTeste.FALHOU));
+        Execucao dev = execucao("cypress", agora.plusSeconds(60), StatusTeste.FALHOU, StatusTeste.FALHOU, StatusTeste.FALHOU);
+        dev.marcarComoDev();
+        repository.save(dev);
+        em.flush();
+
+        assertThat(repository.resumirPeriodo("cypress", Instant.parse("2026-09-01T00:00:00Z"))).isEqualTo(new ResumoPeriodo(1, 2, 1, 1));
+        assertThat(repository.contarFalhasPorSpec("cypress", Instant.parse("2026-09-01T00:00:00Z")))
+                .containsExactly(new FalhasPorSpec("cypress/e2e/login.cy.js", 1));
+        assertThat(repository.countByProjetoIdAndDevFalse("cypress")).isEqualTo(1);
+        assertThat(resultados.historicoPorTeste("cypress")).allMatch(h -> h.execucoes() == 1);
+        // Ainda aparece no histórico (lista das últimas execuções), com o selo dev.
+        assertThat(repository.findTop50ByProjetoIdOrderByIniciadaEmDesc("cypress")).extracting(Execucao::isDev).containsExactly(true, false);
+    }
+
+    @Test
+    void previsaoUsaAMediaDeCadaSpecEOTempoFixoDasExecucoesReais() {
+        Instant agora = Instant.parse("2026-09-15T12:00:00Z");
+        // execucao(): 2 testes de 100ms cada no mesmo spec (= 200ms por execução) e duração total de 10s.
+        repository.save(execucao("cypress", agora, StatusTeste.PASSOU, StatusTeste.PASSOU));
+        repository.save(execucao("cypress", agora.plusSeconds(60), StatusTeste.PASSOU, StatusTeste.FALHOU));
+        em.flush();
+
+        assertThat(repository.mediaPorSpec("cypress")).singleElement().satisfies(d -> {
+            assertThat(d.getSpec()).isEqualTo("cypress/e2e/login.cy.js");
+            assertThat(d.getMediaMs()).isEqualTo(200L);
+            assertThat(d.getAmostras()).isEqualTo(2L);
+        });
+        assertThat(repository.mediaTempoFixo("cypress")).isEqualTo(9_800L); // 10s - 200ms
+    }
+
+    @Test
     void historicoPorTesteContaFalhasEAprovacoesDeCadaTeste(@Autowired ResultadoTesteRepository resultados) {
         // "teste 0" passa e depois falha (instável); "teste 1" sempre falha; "teste 2" sempre passa.
         repository.save(execucao("cypress", Instant.parse("2026-09-10T12:00:00Z"), StatusTeste.PASSOU, StatusTeste.FALHOU, StatusTeste.PASSOU));

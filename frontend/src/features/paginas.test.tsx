@@ -634,8 +634,37 @@ describe('Execuções', () => {
         navegador: 'chrome',
         retentativas: 0,
         abrirNavegador: false,
+        dev: false,
       }),
     )
+  })
+
+  it('mostra a previsão de tempo da seleção e o selo instável', async () => {
+    apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/execucoes?projeto=cypress': [],
+      '/api/configuracoes': configuracoes,
+      '/api/execucoes/duracoes?projeto=cypress': {
+        tempoFixoMs: 20000,
+        mediaPorSpecMs: { 'cypress/e2e/login.cy.js': 30000, 'cypress/e2e/checkout.cy.js': 10000 },
+      },
+      '/api/relatorios?projeto=cypress': { execucoes: 1, testesUnicos: 1, jaFalharam: 1, instaveis: 1, tempoTotalMs: 1, aprovacaoPorExecucao: [],
+        testesComFalha: [{ chave: 'x', spec: 'cypress/e2e/login.cy.js', titulo: 't', modulo: 'Login', tipoErro: null, ultimaMensagem: null,
+          falhas: 1, execucoes: 2, instavel: true, ultimaFalha: null, ultimoResultadoId: null }] },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/execucoes' })
+
+    await user.click(await screen.findByRole('button', { name: 'test' })) // checkout + login
+
+    expect(await screen.findByText(/previsão ~1min/)).toBeInTheDocument() // 20s + 30s + 10s = 1min
+    expect(screen.getByRole('checkbox', { name: /login/ }).closest('label')).toHaveTextContent('instável')
+
+    await user.click(screen.getByRole('button', { name: 'test:diagnostics' })) // spec sem histórico
+    expect(screen.getByText(/sem histórico de 1 spec/)).toBeInTheDocument()
   })
 
   it('mexer num spec depois de escolher um script vira seleção manual (script null)', async () => {

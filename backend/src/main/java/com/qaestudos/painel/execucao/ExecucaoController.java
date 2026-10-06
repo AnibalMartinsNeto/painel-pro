@@ -83,6 +83,12 @@ public class ExecucaoController {
         return ResumoProjetoResponse.de(service.resumir(projeto));
     }
 
+    /** GET /api/execucoes/duracoes?projeto=cypress → base da previsão de tempo (médias das execuções reais). */
+    @GetMapping("/duracoes")
+    public ExecucaoService.Duracoes duracoes(@RequestParam String projeto) {
+        return service.duracoes(projeto);
+    }
+
     /** GET /api/execucoes/42 → execução com todos os resultados de teste. */
     @GetMapping("/{id}")
     public ExecucaoDetalheResponse detalhar(@PathVariable Long id) {
