@@ -213,6 +213,67 @@ describe('Jira', () => {
     expect(JSON.parse(String(publicar[1].body))).toEqual({ demanda: 'DEV-1' })
   })
 
+  it('depois de publicar, continua na mesma falha e mostra o bug criado (não pula para a próxima)', async () => {
+    const outra = { ...falhaPendente, resultadoId: 9, titulo: 'Outra › falha pendente', triagem: null }
+    const publicada = { ...falhaPendente, triagem: { ...rascunhoIa, classificacao: 'BUG_APLICACAO', jiraIssue: 'DEV-2', jiraUrl: 'https://x/browse/DEV-2', demanda: null, atualizadaEm: '2026-10-06T00:00:00Z' } }
+    const rotas: Record<string, unknown> = {
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': comJira,
+      '/api/triagem?projeto=cypress': [{ ...falhaPendente, triagem: rascunhoIa }, outra],
+      '/api/triagem/2': rascunhoIa,
+      '/api/triagem/2/publicar': { chave: 'DEV-2', url: 'https://x/browse/DEV-2', demanda: null, aviso: null },
+    }
+    apiFalsa(rotas)
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/triagem' }) // sem id: abre a primeira pendente
+
+    const botao = await screen.findByRole('button', { name: 'Publicar no Jira' })
+    // Depois de publicar, a fila volta com a falha publicada (não é mais pendente) e a outra pendente.
+    rotas['/api/triagem?projeto=cypress'] = [publicada, outra]
+    await user.click(botao)
+
+    expect(await screen.findByText(/Bug DEV-2 criado no Jira/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /DEV-2 no Jira/ })).toBeInTheDocument()
+    expect(screen.queryByText('Outra › falha pendente', { selector: '.test-title' })).not.toBeInTheDocument()
+  })
+
+  it('publicar mostra o carregamento desde o clique e um clique duplo cria um bug só', async () => {
+    let liberarSalvamento!: () => void
+    const fetchDoTeste = apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': comJira,
+      '/api/triagem?projeto=cypress': [{ ...falhaPendente, triagem: rascunhoIa }],
+      '/api/triagem/2': rascunhoIa,
+      '/api/triagem/2/publicar': { chave: 'DEV-2', url: 'https://x/browse/DEV-2', demanda: null, aviso: null },
+    })
+    // Segura o salvamento (PUT) para ver a tela no meio do envio.
+    const fetchOriginal = fetchDoTeste.getMockImplementation()!
+    fetchDoTeste.mockImplementation(((url: string, init?: RequestInit) =>
+      init?.method === 'PUT'
+        ? new Promise<Response>((ok) => (liberarSalvamento = () => ok(fetchOriginal(url) as unknown as Response)))
+        : fetchOriginal(url)) as typeof fetchOriginal)
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/triagem/2' })
+
+    await user.dblClick(await screen.findByRole('button', { name: 'Publicar no Jira' }))
+
+    const botao = await screen.findByRole('button', { name: /Salvando a triagem/ })
+    expect(botao).toBeDisabled()
+    liberarSalvamento()
+
+    await vi.waitFor(() => {
+      const publicacoes = (fetchDoTeste.mock.calls as unknown as [string, RequestInit | undefined][])
+        .filter(([u, i]) => u === '/api/triagem/2/publicar' && i?.method === 'POST')
+      expect(publicacoes).toHaveLength(1)
+    })
+  })
+
   it('busca a demanda e lista os specs que a citam', async () => {
     apiFalsa({
       '/actuator/health': { status: 'UP' },

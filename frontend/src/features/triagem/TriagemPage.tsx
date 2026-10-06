@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { Badge } from '../../components/Badge'
 import { Carregando, ErroApi } from '../../components/Estado'
@@ -15,6 +15,7 @@ import {
   useSalvarTriagem,
   type Classificacao,
   type FalhaTriagem,
+  type Publicacao,
   type Severidade,
 } from './api'
 
@@ -34,6 +35,16 @@ export function TriagemPage() {
   const pedida = resultadoId ? fila?.find((f) => String(f.resultadoId) === resultadoId) : undefined
   const selecionada = resultadoId ? pedida : lista[0]
   const naoEncontrada = !!resultadoId && !!fila && !pedida
+  // Sem id na URL, abre a primeira da lista FIXANDO o id na URL: assim, quando
+  // ela é triada/publicada e sai de "Pendentes", a tela continua nela em vez
+  // de pular sozinha para a próxima falha.
+  const primeira = lista[0]?.resultadoId
+  useEffect(() => {
+    if (!resultadoId && primeira != null) navigate(`/triagem/${primeira}`, { replace: true })
+  }, [resultadoId, primeira, navigate])
+  // Confirmação da última publicação. Fica aqui (fora do Detalhe) porque o
+  // Detalhe é recriado quando a triagem muda, e a mensagem sumiria junto.
+  const [publicado, setPublicado] = useState<{ resultadoId: number; pub: Publicacao } | null>(null)
 
   return (
     <>
@@ -103,14 +114,37 @@ export function TriagemPage() {
             </div>
           )}
           {/* key: ao trocar de falha, o formulário recomeça com os dados dela */}
-          {selecionada && <Detalhe key={`${selecionada.resultadoId}-${selecionada.triagem?.atualizadaEm}`} falha={selecionada} projeto={projeto} iaAtiva={!!config?.ia.ativa} />}
+          {selecionada && (
+            <div className="stack">
+              {publicado?.resultadoId === selecionada.resultadoId && (
+                <div className="note sucesso" role="status">
+                  <b>✓ Bug {publicado.pub.chave} criado no Jira</b>
+                  {publicado.pub.demanda && <> e ligado à demanda {publicado.pub.demanda}</>}.{" "}
+                  <a href={publicado.pub.url} target="_blank" rel="noopener">Abrir no Jira ↗</a>
+                  {publicado.pub.aviso && <div style={{ marginTop: 4, color: 'var(--amber)' }}>{publicado.pub.aviso}</div>}
+                </div>
+              )}
+              <Detalhe
+                key={`${selecionada.resultadoId}-${selecionada.triagem?.atualizadaEm}`}
+                falha={selecionada}
+                projeto={projeto}
+                iaAtiva={!!config?.ia.ativa}
+                onPublicado={(pub) => setPublicado({ resultadoId: selecionada.resultadoId, pub })}
+              />
+            </div>
+          )}
         </div>
       )}
     </>
   )
 }
 
-function Detalhe({ falha, projeto, iaAtiva }: { falha: FalhaTriagem; projeto: string; iaAtiva: boolean }) {
+function Detalhe({ falha, projeto, iaAtiva, onPublicado }: {
+  falha: FalhaTriagem
+  projeto: string
+  iaAtiva: boolean
+  onPublicado: (pub: Publicacao) => void
+}) {
   const t = falha.triagem
   const analisar = useAnalisar(projeto)
   const salvar = useSalvarTriagem(projeto)
@@ -140,13 +174,25 @@ function Detalhe({ falha, projeto, iaAtiva }: { falha: FalhaTriagem; projeto: st
   const gravar = (c: Classificacao | '' = classificacao) => salvar.mutate({ resultadoId: falha.resultadoId, revisao: revisao(c) })
 
   // Publica o que está NA TELA: salva a revisão primeiro e só então cria o bug.
+  // "enviando" cobre as DUAS etapas: o botão mostra o carregamento desde o
+  // clique (e não só quando o Jira é chamado). O ref barra um segundo clique
+  // antes de o React redesenhar: cada clique a mais criaria um bug duplicado.
+  const [enviando, setEnviando] = useState<'salvando' | 'publicando' | null>(null)
+  const emEnvio = useRef(false)
   const publicarNoJira = async () => {
+    if (emEnvio.current) return
+    emEnvio.current = true
     try {
+      setEnviando('salvando')
       await salvar.mutateAsync({ resultadoId: falha.resultadoId, revisao: revisao() })
+      setEnviando('publicando')
+      onPublicado(await publicar.mutateAsync({ resultadoId: falha.resultadoId, demanda: demanda.trim() }))
     } catch {
-      return // o erro do salvamento já aparece na tela
+      // o erro (do salvamento ou do Jira) já aparece na tela
+    } finally {
+      emEnvio.current = false
+      setEnviando(null)
     }
-    publicar.mutate({ resultadoId: falha.resultadoId, demanda: demanda.trim() })
   }
 
   const temRascunho = !!t?.titulo
@@ -300,8 +346,20 @@ function Detalhe({ falha, projeto, iaAtiva }: { falha: FalhaTriagem; projeto: st
                 </div>
               </div>
               <div className="btn-row" style={{ marginTop: 12 }}>
-                <button className="btn primary" type="button" onClick={publicarNoJira} disabled={publicar.isPending || salvar.isPending || !titulo.trim()}>
-                  {publicar.isPending ? 'Publicando…' : 'Publicar no Jira'}
+                <button
+                  className="btn primary"
+                  type="button"
+                  onClick={publicarNoJira}
+                  disabled={!!enviando || publicar.isPending || salvar.isPending || !titulo.trim()}
+                  aria-busy={!!enviando}
+                >
+                  {enviando ? (
+                    <>
+                      <span className="spinner" aria-hidden="true" /> {enviando === 'salvando' ? 'Salvando a triagem…' : 'Criando o bug no Jira…'}
+                    </>
+                  ) : (
+                    'Publicar no Jira'
+                  )}
                 </button>
                 <span className="hint">Salva a revisão e cria um Bug{demanda ? ` ligado a ${demanda.toUpperCase()}` : ''}.</span>
               </div>

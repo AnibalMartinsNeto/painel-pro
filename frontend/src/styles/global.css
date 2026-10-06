@@ -308,3 +308,5 @@ ul.spec-list { list-style: none; padding: 0; margin: 12px 0 0; }
 .chart text.forte { fill: var(--strong); font-weight: 700; }
 .grafico-dica { position: absolute; top: 0; pointer-events: none; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: var(--inner); border: 1px solid var(--inner-border); border-radius: 10px; font-size: 12px; color: var(--text); white-space: nowrap; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
 .grafico-dica b { color: var(--strong); }
+.note.sucesso { border-color: var(--green-border); background: var(--green-bg); color: var(--text); }
+.note.sucesso b { color: var(--green); }
