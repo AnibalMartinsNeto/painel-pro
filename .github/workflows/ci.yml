@@ -1,16 +1,42 @@
-# CI do painel: roda a cada push e pull request na main (e à mão, pela aba
-# Actions). Backend e front são jobs independentes, em paralelo.
+# CI do painel. Backend e front são jobs independentes, em paralelo.
+#
+# Quando roda:
+# - push e pull request: só o job cuja pasta mudou (mexeu só no frontend/,
+#   roda só o front); mudança só em arquivos .md não dispara nada;
+# - à mão, pela aba Actions ("Run workflow"): tudo.
 name: CI
 
 on:
   push:
     branches: [main]
+    paths-ignore: ["**/*.md"]
   pull_request:
+    paths-ignore: ["**/*.md"]
   workflow_dispatch:
 
 jobs:
+  # Descobre quais pastas mudaram. Mudança no próprio workflow conta para os dois.
+  mudancas:
+    name: Pastas alteradas
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filtro.outputs.backend }}
+      frontend: ${{ steps.filtro.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filtro
+        with:
+          filters: |
+            backend: ["backend/**", ".github/workflows/**"]
+            frontend: ["frontend/**", ".github/workflows/**"]
+
   backend:
     name: Backend (Java 21 + Spring Boot)
+    needs: mudancas
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.mudancas.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -36,6 +62,8 @@ jobs:
 
   frontend:
     name: Front (React + TypeScript)
+    needs: mudancas
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.mudancas.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
