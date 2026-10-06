@@ -1,0 +1,55 @@
+# CI do painel: roda a cada push e pull request na main (e à mão, pela aba
+# Actions). Backend e front são jobs independentes, em paralelo.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend (Java 21 + Spring Boot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      # O runner do GitHub já tem Docker: o Testcontainers sobe um
+      # PostgreSQL descartável para os testes de banco, como na máquina local.
+      # A chave-mestra dos segredos é criada na hora (~/.qapanel), só para o CI.
+      - run: ./mvnw -B verify
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: backend-relatorios-de-teste
+          path: backend/target/surefire-reports/
+          retention-days: 14
+
+  frontend:
+    name: Front (React + TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      # build = checagem de tipos (tsc -b) + versão de produção (vite build)
+      - run: npm run build

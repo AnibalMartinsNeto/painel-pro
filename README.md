@@ -1,5 +1,7 @@
 # QA Panel Pro
 
+[![CI](https://github.com/AnibalMartinsNeto/painel-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/AnibalMartinsNeto/painel-pro/actions/workflows/ci.yml)
+
 Versão "profissional" do QA Panel, construída por etapas como projeto de estudo:
 
 | Camada | Tecnologia | Pasta |
@@ -20,7 +22,7 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
    - ✅ Triagem com IA (Gemini ou Claude; fila por consulta nativa; rascunho editável; heurística sem chave)
    - ✅ Jira: publicar o bug da triagem ligado à demanda, e buscar a demanda para rodar os specs que a citam
    - 🟨 Relatórios (✅ totais do histórico, aprovação por execução, testes que mais falham/instáveis, CSV e JSON; ✅ histórico do projeto no Jira) · ⬜ screenshots, falha nova × recorrente
-   - ⬜ CI no GitHub Actions
+   - ✅ CI no GitHub Actions: testes do backend (com PostgreSQL via Testcontainers), lint, testes e build do front a cada push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); os testes do serverest-qa têm o CI deles
 
 ## Como rodar do zero
 
