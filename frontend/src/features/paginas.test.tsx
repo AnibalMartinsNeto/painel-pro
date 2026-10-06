@@ -568,6 +568,29 @@ describe('Execuções', () => {
     expect(screen.getByRole('button', { name: /Executar selecionados/ })).toBeDisabled()
   })
 
+  it('o atalho de módulo marca só os specs daquele módulo', async () => {
+    apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': { ...cypress, modulos: [
+        { rotulo: 'Login', termo: 'login', specs: ['cypress/e2e/login.cy.js'] },
+        { rotulo: 'Carrinho', termo: 'carrinho', specs: [] },
+      ] },
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/execucoes?projeto=cypress': [],
+      '/api/configuracoes': configuracoes,
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/execucoes' })
+
+    const modulos = await screen.findByLabelText('Módulos')
+    expect(within(modulos).queryByRole('button', { name: /Carrinho/ })).not.toBeInTheDocument() // sem specs: some
+    await user.click(within(modulos).getByRole('button', { name: 'Login (1)' }))
+
+    expect(screen.getByRole('checkbox', { name: /login/ })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /checkout/ })).not.toBeChecked()
+  })
+
   it('a seleção rápida marca os specs do script escolhido', async () => {
     const user = userEvent.setup()
     renderComApp(<App />, { rota: '/execucoes' })

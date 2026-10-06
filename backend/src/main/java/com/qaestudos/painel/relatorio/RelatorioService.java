@@ -2,7 +2,6 @@ package com.qaestudos.painel.relatorio;
 
 import com.qaestudos.painel.execucao.Execucao;
 import com.qaestudos.painel.execucao.ExecucaoRepository;
-import com.qaestudos.painel.execucao.ExecucaoService;
 import com.qaestudos.painel.execucao.HistoricoTeste;
 import com.qaestudos.painel.execucao.ResultadoTeste;
 import com.qaestudos.painel.execucao.ResultadoTesteRepository;
@@ -51,7 +50,7 @@ public class RelatorioService {
             List<Execucao> aprovacaoPorExecucao, List<TesteComFalha> testesComFalha) {}
 
     public Relatorio gerar(String projetoId) {
-        projetos.buscar(projetoId); // 404 se o projeto não existir
+        var projeto = projetos.buscar(projetoId); // 404 se o projeto não existir
 
         List<HistoricoTeste> historico = resultados.historicoPorTeste(projetoId);
 
@@ -67,7 +66,7 @@ public class RelatorioService {
             if (h.falhas() == 0) continue;
             ResultadoTeste ultima = ultimaFalha.get(h.chave());
             comFalha.add(new TesteComFalha(
-                    h.chave(), h.spec(), h.titulo(), ExecucaoService.moduloDe(h.spec()),
+                    h.chave(), h.spec(), h.titulo(), projetos.moduloDe(projeto, h.spec()),
                     ultima == null ? null : ultima.getTipoErro(),
                     ultima == null ? null : ultima.getMensagemErro(),
                     h.falhas(), h.execucoes(), h.instavel(),

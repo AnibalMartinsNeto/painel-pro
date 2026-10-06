@@ -22,7 +22,11 @@ public record ProjetoDetalheResponse(
         List<String> specs,
         List<ScriptExecucao> scripts,
         RegrasNegocio regras,
-        List<PastaSistema> codigoSistema) {
+        List<PastaSistema> codigoSistema,
+        List<ModuloResponse> modulos) {
+
+    /** Um módulo e os specs que ele cobre (filtro da tela de Execuções). */
+    public record ModuloResponse(String rotulo, String termo, List<String> specs) {}
 
     /** Pasta com código do sistema testado que a IA consulta na triagem, e se ela existe. */
     public record PastaSistema(String pasta, boolean encontrada) {}
@@ -47,6 +51,9 @@ public record ProjetoDetalheResponse(
                         : new RegrasNegocio(projeto.arquivoRegras().getFileName().toString(), regrasEncontradas),
                 projeto.codigoSistema().stream()
                         .map(p -> new PastaSistema(p.getFileName().toString(), Files.isDirectory(p)))
+                        .toList(),
+                projeto.modulos().stream()
+                        .map(m -> new ModuloResponse(m.rotulo(), m.termo(), specs.stream().filter(m::cobre).toList()))
                         .toList());
     }
 }

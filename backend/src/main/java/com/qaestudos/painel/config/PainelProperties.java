@@ -35,11 +35,16 @@ public record PainelProperties(@NotEmpty List<@Valid ProjetoConfig> projetos) {
             String arquivoRegras,
             // Opcional: pastas com o código-fonte do sistema testado; a IA
             // recebe os trechos ligados à falha (relativas à pasta do backend).
-            List<String> codigoSistema) {
+            List<String> codigoSistema,
+            // Opcional: módulos do sistema (rótulo + termo no nome do spec + seção das regras).
+            List<@Valid ModuloConfig> modulos) {
 
         public ProjetoConfig {
+            modulos = modulos == null ? List.of() : List.copyOf(modulos);
             navegadores = navegadores == null ? List.of() : List.copyOf(navegadores);
             codigoSistema = codigoSistema == null ? List.of() : List.copyOf(codigoSistema);
         }
     }
+
+    public record ModuloConfig(@NotBlank String rotulo, @NotBlank String termo, String secaoRegras) {}
 }

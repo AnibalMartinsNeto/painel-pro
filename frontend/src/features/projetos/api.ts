@@ -35,6 +35,8 @@ export interface ProjetoDetalhe extends ProjetoResumo {
   regras?: { arquivo: string; encontrado: boolean } | null
   /** Pastas com o código-fonte do sistema testado que a IA consulta na triagem. */
   codigoSistema?: { pasta: string; encontrada: boolean }[]
+  /** Módulos do sistema e os specs de cada um (filtro da tela de Execuções). */
+  modulos?: { rotulo: string; termo: string; specs: string[] }[]
 }
 
 export const listarProjetos = () => apiGet<ProjetoResumo[]>('/api/projetos')

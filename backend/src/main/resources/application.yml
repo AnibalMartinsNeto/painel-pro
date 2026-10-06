@@ -56,6 +56,11 @@ painel:
       navegadores: [electron, chrome, edge, firefox]
       arquivo-regras: ../../serverest-qa/REGRAS_DE_NEGOCIO.md
       codigo-sistema: [../../_arquivo/ServeRest-front, ../../_arquivo/ServeRest]
+      modulos:
+        - { rotulo: Login, termo: login, secao-regras: "Login e autenticação" }
+        - { rotulo: Usuários, termo: usuario, secao-regras: "Usuários" }
+        - { rotulo: Produtos, termo: produto, secao-regras: "Produtos" }
+        - { rotulo: Loja, termo: loja, secao-regras: "Loja e lista de compras" }
     - id: playwright
       nome: Playwright
       tipo: PLAYWRIGHT
@@ -65,6 +70,11 @@ painel:
       navegadores: [chromium, chrome, msedge, firefox, webkit]
       arquivo-regras: ../../serverest-qa/REGRAS_DE_NEGOCIO.md
       codigo-sistema: [../../_arquivo/ServeRest-front, ../../_arquivo/ServeRest]
+      modulos:
+        - { rotulo: Login, termo: login, secao-regras: "Login e autenticação" }
+        - { rotulo: Usuários, termo: usuario, secao-regras: "Usuários" }
+        - { rotulo: Produtos, termo: produto, secao-regras: "Produtos" }
+        - { rotulo: Loja, termo: loja, secao-regras: "Loja e lista de compras" }
     - id: k6
       nome: k6 (desempenho)
       tipo: K6
@@ -74,3 +84,5 @@ painel:
       navegadores: []
       arquivo-regras: ../../serverest-qa/REGRAS_DE_NEGOCIO.md
       codigo-sistema: [../../_arquivo/ServeRest-front, ../../_arquivo/ServeRest]
+      modulos:
+        - { rotulo: Login, termo: login, secao-regras: "Login e autenticação" }

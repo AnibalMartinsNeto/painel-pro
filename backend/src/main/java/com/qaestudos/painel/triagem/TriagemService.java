@@ -143,7 +143,7 @@ public class TriagemService {
         Projeto projeto = projetos.buscar(e.getProjetoId());
         String codigoSpec = lerCodigo(projeto.diretorio().resolve(r.getSpec()));
         var contexto = new ContextoFalha(projeto.nome(), r.getSpec(), r.getTitulo(), r.getMensagemErro(), r.getTipoErro(),
-                e.getNavegador(), codigoSpec, projetos.regras(projeto).orElse(null),
+                e.getNavegador(), codigoSpec, projetos.regrasPara(projeto, r.getSpec()).orElse(null),
                 trechosDoSistema(projeto, r.getSpec(), codigoSpec, r.getTitulo(), r.getMensagemErro()));
         return new Alvo(r.getId(), e.getProjetoId(), r.getChave(), contexto);
     }

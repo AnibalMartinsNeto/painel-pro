@@ -21,21 +21,29 @@ public record Projeto(
         Pattern padraoSpec,
         List<String> navegadores,
         Path arquivoRegras,
-        List<Path> codigoSistema) {
+        List<Path> codigoSistema,
+        List<Modulo> modulos) {
 
     public Projeto {
         codigoSistema = codigoSistema == null ? List.of() : List.copyOf(codigoSistema);
+        modulos = modulos == null ? List.of() : List.copyOf(modulos);
+    }
+
+    /** Projeto sem módulos configurados. */
+    public Projeto(String id, String nome, TipoProjeto tipo, Path diretorio, String pastaSpecs, Pattern padraoSpec,
+                   List<String> navegadores, Path arquivoRegras, List<Path> codigoSistema) {
+        this(id, nome, tipo, diretorio, pastaSpecs, padraoSpec, navegadores, arquivoRegras, codigoSistema, List.of());
     }
 
     /** Projeto sem arquivo de regras de negócio nem código do sistema. */
     public Projeto(String id, String nome, TipoProjeto tipo, Path diretorio, String pastaSpecs, Pattern padraoSpec,
                    List<String> navegadores) {
-        this(id, nome, tipo, diretorio, pastaSpecs, padraoSpec, navegadores, null, List.of());
+        this(id, nome, tipo, diretorio, pastaSpecs, padraoSpec, navegadores, null, List.of(), List.of());
     }
 
     /** Projeto sem código do sistema. */
     public Projeto(String id, String nome, TipoProjeto tipo, Path diretorio, String pastaSpecs, Pattern padraoSpec,
                    List<String> navegadores, Path arquivoRegras) {
-        this(id, nome, tipo, diretorio, pastaSpecs, padraoSpec, navegadores, arquivoRegras, List.of());
+        this(id, nome, tipo, diretorio, pastaSpecs, padraoSpec, navegadores, arquivoRegras, List.of(), List.of());
     }
 }

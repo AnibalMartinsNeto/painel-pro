@@ -108,6 +108,17 @@ function NovaExecucao({ projeto, emAndamento }: { projeto: ProjetoDetalhe; emAnd
         </div>
       </div>
 
+      {(projeto.modulos ?? []).some((m) => m.specs.length > 0) && (
+        <div className="btn-row" style={{ margin: '0 0 10px' }} aria-label="Módulos">
+          <span className="hint">Por módulo:</span>
+          {(projeto.modulos ?? []).filter((m) => m.specs.length > 0).map((m) => (
+            <button key={m.termo} type="button" className="btn ghost sm" onClick={() => escolher(null, m.specs)}>
+              {m.rotulo} ({m.specs.length})
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="spec-list">
         {projeto.specs.map((s) => (
           <label key={s} className="check">

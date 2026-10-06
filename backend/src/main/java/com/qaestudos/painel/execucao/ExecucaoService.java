@@ -29,11 +29,6 @@ public class ExecucaoService {
 
     static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
 
-    private static final Map<String, String> NOMES_MODULO = Map.of(
-            "login", "Login",
-            "checkout", "Checkout",
-            "sorting", "Ordenação",
-            "user-behavior-matrix", "Matriz de usuários");
 
     private final ExecucaoRepository repository;
     private final ProjetoService projetoService;
@@ -66,7 +61,7 @@ public class ExecucaoService {
         // Agrupa as falhas por módulo (vários specs podem cair no mesmo módulo).
         Map<String, Long> porModulo = new LinkedHashMap<>();
         for (FalhasPorSpec f : repository.contarFalhasPorSpec(projetoId, inicioMes)) {
-            porModulo.merge(moduloDe(f.spec()), f.falhas(), Long::sum);
+            porModulo.merge(projetoService.moduloDe(projeto, f.spec()), f.falhas(), Long::sum);
         }
         List<ResumoProjeto.FalhasModulo> modulos = porModulo.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
@@ -86,9 +81,4 @@ public class ExecucaoService {
         return new ResumoProjeto(mes, periodo, modulos, ultima.orElse(null), porScript);
     }
 
-    /** "cypress/e2e/login.cy.js" → "Login". */
-    public static String moduloDe(String spec) {
-        String base = spec.substring(spec.lastIndexOf('/') + 1).replaceFirst("\\.(cy|spec|test)?\\.?[jt]sx?$", "");
-        return NOMES_MODULO.getOrDefault(base, base.isEmpty() ? spec : Character.toUpperCase(base.charAt(0)) + base.substring(1));
-    }
 }

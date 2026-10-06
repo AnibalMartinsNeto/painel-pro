@@ -97,6 +97,35 @@ class ProjetoServiceTest {
     }
 
     @Test
+    void regrasParaMandaSoASecaoDoModuloDoSpecMaisAmbiente() throws IOException {
+        Path arquivo = tmp.resolve("REGRAS.md");
+        Files.writeString(arquivo, """
+                # Regras
+                Introdução.
+
+                ## Usuários
+                - USU-03: e-mail único
+
+                ## Produtos
+                - PRO-04: preço inteiro
+
+                ## Ambiente de teste
+                - AMB-01: API local
+                """);
+        Projeto comModulos = new Projeto("cypress", "Cypress", TipoProjeto.CYPRESS, tmp.resolve("Cypress"),
+                cypress.pastaSpecs(), cypress.padraoSpec(), cypress.navegadores(), arquivo, List.of(),
+                List.of(new Modulo("Usuários", "usuario", "Usuários"), new Modulo("Produtos", "produto", "Produtos")));
+
+        assertThat(service.regrasPara(comModulos, "cypress/e2e/admin-usuarios.cy.js")).hasValueSatisfying(r ->
+                assertThat(r).contains("USU-03", "AMB-01").doesNotContain("PRO-04", "Introdução"));
+        // Spec sem módulo: vai o arquivo inteiro (melhor sobrar contexto que faltar).
+        assertThat(service.regrasPara(comModulos, "cypress/e2e/outra-coisa.cy.js")).hasValueSatisfying(r ->
+                assertThat(r).contains("USU-03", "PRO-04", "Introdução"));
+        assertThat(service.moduloDe(comModulos, "cypress/e2e/admin-produtos.cy.js")).isEqualTo("Produtos");
+        assertThat(service.moduloDe(comModulos, "cypress/e2e/checkout.cy.js")).isEqualTo("Checkout"); // sem módulo: pelo nome
+    }
+
+    @Test
     void baseUrlLeODeclaradoNoArquivoDeConfiguracao() throws IOException {
         Files.createDirectories(cypress.diretorio());
         Files.writeString(cypress.diretorio().resolve("cypress.config.js"), "e2e: { baseUrl: \"https://minha.app\" }");

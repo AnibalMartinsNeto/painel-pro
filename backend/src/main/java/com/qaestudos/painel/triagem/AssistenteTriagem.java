@@ -94,7 +94,7 @@ public class AssistenteTriagem {
                 }
                 """.formatted(
                 f.ferramenta(), f.spec(), f.titulo(), valor(f.tipoErro()), valor(f.navegador()),
-                cortar(f.mensagemErro(), LIMITE_ERRO), cortar(f.codigoSpec(), LIMITE_CODIGO), secaoRegras(f.regrasNegocio()),
+                cortar(f.mensagemErro(), LIMITE_ERRO), cortar(ResumoSpec.paraPrompt(f.codigoSpec(), f.titulo()), LIMITE_CODIGO), secaoRegras(f.regrasNegocio()),
                 secaoSistema(f.codigoSistema()));
     }
 

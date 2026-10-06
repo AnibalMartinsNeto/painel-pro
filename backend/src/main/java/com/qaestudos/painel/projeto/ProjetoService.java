@@ -85,6 +85,41 @@ public class ProjetoService {
         }
     }
 
+    /**
+     * Só as regras que importam para este spec: as seções ({@code ## ...}) dos
+     * módulos que o cobrem, mais as de ambiente. Economiza o prompt da IA e a
+     * deixa focada. Sem módulo/seção que bata, devolve o arquivo inteiro.
+     */
+    public Optional<String> regrasPara(Projeto projeto, String spec) {
+        return regras(projeto).map(texto -> {
+            List<String> titulos = projeto.modulos().stream()
+                    .filter(m -> m.cobre(spec) && m.secaoRegras() != null && !m.secaoRegras().isBlank())
+                    .map(Modulo::secaoRegras)
+                    .toList();
+            if (titulos.isEmpty()) return texto;
+            StringBuilder sb = new StringBuilder();
+            for (String secao : texto.split("(?m)^(?=## )")) {
+                String titulo = secao.lines().findFirst().orElse("").replaceFirst("^##\\s*", "").strip();
+                if (titulos.contains(titulo) || titulo.toLowerCase().startsWith("ambiente")) {
+                    sb.append(secao.strip()).append("\n\n");
+                }
+            }
+            return sb.isEmpty() ? texto : sb.toString().strip();
+        });
+    }
+
+    /** Rótulo do módulo do spec (o primeiro que o cobre); sem módulo, deriva do nome do arquivo. */
+    public String moduloDe(Projeto projeto, String spec) {
+        return projeto.modulos().stream().filter(m -> m.cobre(spec)).map(Modulo::rotulo).findFirst()
+                .orElseGet(() -> moduloPeloNome(spec));
+    }
+
+    /** "cypress/e2e/login.cy.js" → "Login". */
+    static String moduloPeloNome(String spec) {
+        String base = spec.substring(spec.lastIndexOf('/') + 1).replaceFirst("\\.(cy|spec|test)?\\.?[jt]sx?$", "");
+        return base.isEmpty() ? spec : Character.toUpperCase(base.charAt(0)) + base.substring(1);
+    }
+
     /** URL da aplicação testada, lida do arquivo de configuração da ferramenta. */
     public Optional<String> baseUrl(Projeto projeto) {
         String arquivo = switch (projeto.tipo()) {

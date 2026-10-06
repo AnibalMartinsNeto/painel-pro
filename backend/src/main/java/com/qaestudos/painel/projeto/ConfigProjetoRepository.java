@@ -27,7 +27,8 @@ public class ConfigProjetoRepository implements ProjetoRepository {
                         c.navegadores(),
                         c.arquivoRegras() == null || c.arquivoRegras().isBlank()
                                 ? null : Path.of(c.arquivoRegras()).toAbsolutePath().normalize(),
-                        c.codigoSistema().stream().map(p -> Path.of(p).toAbsolutePath().normalize()).toList()))
+                        c.codigoSistema().stream().map(p -> Path.of(p).toAbsolutePath().normalize()).toList(),
+                        c.modulos().stream().map(m -> new Modulo(m.rotulo(), m.termo(), m.secaoRegras())).toList()))
                 .toList();
     }
 
