@@ -195,6 +195,20 @@ public class JiraCliente {
         }
     }
 
+    /** POST /issue/{chave}/comment: comentário (ADF) num bug que já existe. */
+    public void comentar(String chave, Map<String, Object> corpo) {
+        try {
+            cliente().post().uri("/rest/api/3/issue/{chave}/comment", chave).contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("body", corpo)).retrieve().toBodilessEntity();
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new RequisicaoInvalidaException("O bug %s não existe mais no Jira (ou a conta perdeu acesso).".formatted(chave));
+        } catch (HttpClientErrorException.Unauthorized | HttpClientErrorException.Forbidden e) {
+            throw new RequisicaoInvalidaException("Sem permissão para comentar em %s (%s).".formatted(chave, e.getStatusCode()));
+        } catch (ResourceAccessException e) {
+            throw new RequisicaoInvalidaException("Não foi possível conectar ao Jira em %s.".formatted(texto(JIRA_URL)));
+        }
+    }
+
     /** POST /issueLink: "bug relaciona-se a demanda" (tipo de ligação padrão "Relates"). */
     public void vincular(String bug, String demanda) {
         cliente().post().uri("/rest/api/3/issueLink").contentType(MediaType.APPLICATION_JSON)

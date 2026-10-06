@@ -15,6 +15,9 @@ import com.qaestudos.painel.execucao.ResultadoTeste;
 import com.qaestudos.painel.execucao.StatusExecucao;
 import com.qaestudos.painel.execucao.StatusTeste;
 import com.qaestudos.painel.triagem.TriagemRepository;
+import com.qaestudos.painel.triagem.JiraVinculoRepository;
+import org.springframework.transaction.support.TransactionTemplate;
+import static org.mockito.Mockito.times;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +42,8 @@ class PublicacaoJiraApiTest {
     @Autowired MockMvcTester mvc;
     @Autowired ExecucaoRepository execucoes;
     @Autowired TriagemRepository triagens;
+    @Autowired JiraVinculoRepository vinculos;
+    @Autowired TransactionTemplate tx;
 
     @MockitoBean
     JiraCliente jira;
@@ -47,6 +52,7 @@ class PublicacaoJiraApiTest {
 
     @BeforeEach
     void setUp() {
+        vinculos.deleteAll();
         triagens.deleteAll();
         execucoes.deleteAll();
         Execucao e = new Execucao("k6", "test", null, Instant.parse("2026-09-29T10:00:00Z"));
@@ -106,6 +112,67 @@ class PublicacaoJiraApiTest {
                         """);
         // Uma demanda comum (não publicada pelo painel) não tem origem.
         assertThat(mvc.get().uri("/api/jira/demandas/DEV-1?projeto=k6")).bodyJson().extractingPath("$.origem").isNull();
+    }
+
+    /** Mesma falha do setUp (k6 › login), numa execução DEPOIS da publicação. */
+    private Long falhaDeNovo() {
+        Execucao e = new Execucao("k6", "test", null, Instant.now().plusSeconds(60));
+        e.adicionarResultado(new ResultadoTeste("tests/login.js", "Login › ok", StatusTeste.FALHOU, 10L,
+                "2 de 3 verificações falharam.", "Asserção"));
+        e.finalizar(StatusExecucao.FALHOU, Instant.now().plusSeconds(65), 5000L);
+        return execucoes.save(e).getResultados().getFirst().getId();
+    }
+
+    @Test
+    void falhaQueVoltaDepoisDoBugViraRecorrenteEOComentarvaiNoBugExistente() {
+        salvarTriagem();
+        assertThat(publicar("DEV-1")).hasStatusOk();
+        Long novaFalha = falhaDeNovo();
+
+        assertThat(mvc.get().uri("/api/triagem?projeto=k6")).bodyJson().isLenientlyEqualTo("""
+                [{"resultadoId":%d,"recorrente":true,"triagem":{"jiraIssue":"DEV-2"},"vinculos":[{"chave":"DEV-2","acao":"CRIADO"}]}]
+                """.formatted(novaFalha));
+
+        assertThat(mvc.post().uri("/api/triagem/{id}/comentar", novaFalha)).hasStatusOk().bodyJson()
+                .isLenientlyEqualTo("{\"chave\":\"DEV-2\"}");
+        verify(jira).comentar(eq("DEV-2"), any());
+        verify(jira, times(1)).criarBug(any()); // nenhum bug novo
+
+        // Comentada: deixa de ser recorrente e o histórico mostra o comentário primeiro.
+        assertThat(mvc.get().uri("/api/triagem?projeto=k6")).bodyJson().isLenientlyEqualTo("""
+                [{"recorrente":false,"vinculos":[{"acao":"COMENTADO"},{"acao":"CRIADO"}]}]
+                """);
+        assertThat(mvc.post().uri("/api/triagem/{id}/comentar", novaFalha)).hasStatus(409); // não comenta 2x
+    }
+
+    @Test
+    void novoBugCriaOutroMesmoComOTesteJaPublicado() {
+        salvarTriagem();
+        assertThat(publicar("DEV-1")).hasStatusOk();
+        given(jira.criarBug(any())).willReturn(new JiraCliente.Issue("DEV-3", "Login falhando", "Bug", null,
+                "https://empresa.atlassian.net/browse/DEV-3"));
+
+        assertThat(mvc.post().uri("/api/triagem/{id}/publicar", resultadoId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"demanda\":\"DEV-1\",\"novoBug\":true}"))
+                .hasStatusOk().bodyJson().extractingPath("$.chave").isEqualTo("DEV-3");
+        assertThat(vinculos.findAll()).extracting(v -> v.getJiraIssue()).containsExactlyInAnyOrder("DEV-2", "DEV-3");
+    }
+
+    @Test
+    void publicacaoEmAndamentoBarraUmSegundoPedido() {
+        salvarTriagem();
+        Long triagemId = triagens.findAll().getFirst().getId();
+        Instant agora = Instant.now();
+        // Simula outro pedido que acabou de reservar a publicação (ainda falando com o Jira).
+        Integer reservou = tx.execute(s -> triagens.reservarPublicacao(triagemId, agora, agora.minusSeconds(120)));
+        assertThat(reservou).isEqualTo(1);
+
+        assertThat(publicar("DEV-1")).hasStatus(409).bodyJson().extractingPath("$.detail").asString().contains("em andamento");
+        verify(jira, never()).criarBug(any());
+
+        // Reserva velha (o backend caiu no meio) não trava para sempre.
+        Integer reservouDeNovo = tx.execute(s -> triagens.reservarPublicacao(triagemId, agora.plusSeconds(300), agora.plusSeconds(180)));
+        assertThat(reservouDeNovo).isEqualTo(1);
     }
 
     @Test

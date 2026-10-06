@@ -46,19 +46,53 @@ public class Triagem {
     private String jiraUrl;
     private String demanda;
     private Instant publicadaEm;
+    private Long ignoradoResultadoId;
+    private Instant ignoradoEm;
+    private Long comentadoResultadoId;
+    private Instant publicandoEm;
 
     protected Triagem() {}
 
-    /** Registra o bug criado no Jira. Uma triagem publica no máximo um bug. */
+    /**
+     * Registra o bug criado no Jira. Normalmente uma triagem tem um bug só; um
+     * "novo bug" (o antigo foi fechado) substitui o atual — o histórico completo
+     * fica em {@link JiraVinculo}.
+     */
     public void registrarPublicacao(String jiraIssue, String jiraUrl, String demanda, Instant agora) {
         this.jiraIssue = jiraIssue;
         this.jiraUrl = jiraUrl;
         this.demanda = demanda;
         this.publicadaEm = agora;
+        this.comentadoResultadoId = null;
     }
 
     public boolean publicada() {
         return jiraIssue != null;
+    }
+
+    /** Tira da fila ESTA ocorrência, sem publicar. Uma falha nova (outro resultado) volta a aparecer. */
+    public void ignorar(Long resultadoId, Instant agora) {
+        this.ignoradoResultadoId = resultadoId;
+        this.ignoradoEm = agora;
+        this.atualizadaEm = agora; // a falha pode ser ignorada antes de ter qualquer triagem
+    }
+
+    public boolean ignorada(Long resultadoId) {
+        return resultadoId != null && resultadoId.equals(ignoradoResultadoId);
+    }
+
+    /** Registra que esta ocorrência já foi comentada no bug existente. */
+    public void registrarComentario(Long resultadoId) {
+        this.comentadoResultadoId = resultadoId;
+    }
+
+    /**
+     * RECORRENTE: o teste já tem bug publicado e voltou a falhar DEPOIS da
+     * publicação, numa ocorrência que ainda não foi comentada no bug.
+     */
+    public boolean recorrente(Long resultadoId, Instant ocorridaEm) {
+        return publicada() && publicadaEm != null && ocorridaEm != null && ocorridaEm.isAfter(publicadaEm)
+                && !resultadoId.equals(comentadoResultadoId);
     }
 
     public Triagem(String projetoId, String chaveTeste) {
@@ -118,4 +152,7 @@ public class Triagem {
     public String getJiraUrl() { return jiraUrl; }
     public String getDemanda() { return demanda; }
     public Instant getPublicadaEm() { return publicadaEm; }
+    public Long getIgnoradoResultadoId() { return ignoradoResultadoId; }
+    public Instant getIgnoradoEm() { return ignoradoEm; }
+    public Long getComentadoResultadoId() { return comentadoResultadoId; }
 }

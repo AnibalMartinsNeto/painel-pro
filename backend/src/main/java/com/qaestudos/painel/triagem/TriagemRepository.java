@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,6 +17,22 @@ public interface TriagemRepository extends JpaRepository<Triagem, Long> {
 
     /** A triagem que gerou o bug (ex.: DEV-8), se ele foi publicado pelo painel. */
     Optional<Triagem> findByProjetoIdAndJiraIssue(String projetoId, String jiraIssue);
+
+    /**
+     * Reserva a publicação no Jira de forma ATÔMICA: só marca se não houver
+     * outra publicação em andamento (ou se a reserva anterior ficou velha, ex.:
+     * o backend caiu no meio). Devolve 1 se reservou, 0 se já estava reservada.
+     */
+    @Modifying
+    @Query("""
+            update Triagem t set t.publicandoEm = :agora
+            where t.id = :id and (t.publicandoEm is null or t.publicandoEm < :expirada)
+            """)
+    int reservarPublicacao(@Param("id") Long id, @Param("agora") Instant agora, @Param("expirada") Instant expirada);
+
+    @Modifying
+    @Query("update Triagem t set t.publicandoEm = null where t.id = :id")
+    void liberarPublicacao(@Param("id") Long id);
 
     /** Bugs já publicados no Jira pelo painel, mais recentes primeiro. */
     List<Triagem> findByProjetoIdAndJiraIssueIsNotNullOrderByPublicadaEmDesc(String projetoId);

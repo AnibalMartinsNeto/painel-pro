@@ -205,6 +205,10 @@ A **chave-mestra** que decifra os segredos fica fora do banco e do Git:
 - A descrição vai em **ADF** (o formato de documento do Jira Cloud), com passos, esperado, encontrado, análise e o erro. A severidade vira prioridade (CRÍTICA→Highest ... BAIXA→Low), com as etiquetas `qa-panel` e o projeto.
 - A chamada ao Jira fica **fora da transação**, como na IA. Se o vínculo falhar, o bug continua criado e a resposta traz um aviso.
 - A migração V5 guarda na triagem a chave, o link, a demanda e a data da publicação.
+- **Recorrência:** se um teste que já tem bug publicado falha de novo depois da publicação, ele volta à fila como **Recorrente**. A tela oferece **comentar a nova ocorrência no bug existente** (`POST /api/triagem/{id}/comentar`, com execução, data e erro) em vez de criar outro; "Criar novo bug" (`novoBug: true`) fica para quando o antigo foi fechado. Tudo vai para o histórico `jira_vinculo` (CRIADO/COMENTADO), mostrado na tela.
+- **Ignorar:** `POST /api/triagem/{id}/ignorar` tira **aquela ocorrência** da fila sem publicar; se o teste falhar de novo, volta. `POST /api/triagem/ignorar-pendentes?projeto=` faz isso com todas as ainda não triadas.
+- **Sem bug duplicado:** antes de chamar o Jira, a publicação é **reservada** no banco por um UPDATE condicional (atômico). Um segundo pedido simultâneo recebe 409; uma reserva esquecida expira em 2 minutos.
+- **Specs removidos saem da fila:** falhas de specs que não existem mais no projeto não aparecem (nunca voltariam a passar).
 - **Bugs publicados × histórico do Jira:** o primeiro é o que o painel registrou no banco; o segundo é o que de fato existe no Jira. Comparar os dois revela issues "órfãs" (criadas no Jira mas não registradas no painel).
 
 ### Banco de dados

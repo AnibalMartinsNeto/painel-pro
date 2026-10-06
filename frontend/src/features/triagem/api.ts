@@ -51,6 +51,17 @@ export interface FalhaTriagem {
   ocorridaEm: string
   navegador: string | null
   triagem: Triagem | null
+  /** Já tem bug publicado e voltou a falhar depois disso. */
+  recorrente: boolean
+  /** O que o painel já fez no Jira por este teste (mais recente primeiro). */
+  vinculos: VinculoJira[]
+}
+
+export interface VinculoJira {
+  chave: string
+  url: string | null
+  acao: 'CRIADO' | 'COMENTADO'
+  em: string
 }
 
 export interface Revisao {
@@ -63,7 +74,8 @@ export interface Revisao {
   observacoes: string
 }
 
-export const pendente = (f: FalhaTriagem) => !f.triagem?.classificacao
+/** Precisa de atenção: ainda não triada, ou recorrente (o bug existe, mas a falha voltou). */
+export const pendente = (f: FalhaTriagem) => !f.triagem?.classificacao || f.recorrente
 
 export function useFilaTriagem(projeto: string) {
   return useQuery({
@@ -84,13 +96,40 @@ export function useAnalisar(projeto: string) {
 export function usePublicarNoJira(projeto: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ resultadoId, demanda }: { resultadoId: number; demanda: string }) =>
-      apiPost<Publicacao>(`/api/triagem/${resultadoId}/publicar`, { demanda: demanda || null }),
+    mutationFn: ({ resultadoId, demanda, novoBug = false }: { resultadoId: number; demanda: string; novoBug?: boolean }) =>
+      apiPost<Publicacao>(`/api/triagem/${resultadoId}/publicar`, { demanda: demanda || null, novoBug }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['triagem', projeto] })
       queryClient.invalidateQueries({ queryKey: ['jira-bugs', projeto] })
       queryClient.invalidateQueries({ queryKey: ['jira-historico'] })
     },
+  })
+}
+
+/** Falha recorrente: comenta a nova ocorrência no bug que já existe (em vez de criar outro). */
+export function useComentarOcorrencia(projeto: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (resultadoId: number) => apiPost<{ chave: string; url: string }>(`/api/triagem/${resultadoId}/comentar`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['triagem', projeto] }),
+  })
+}
+
+/** Tira esta ocorrência da fila sem publicar. Se o teste falhar de novo, ela volta. */
+export function useIgnorar(projeto: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (resultadoId: number) => apiPost<void>(`/api/triagem/${resultadoId}/ignorar`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['triagem', projeto] }),
+  })
+}
+
+/** "Ignorar pendentes": tira da fila todas as falhas ainda não triadas. */
+export function useIgnorarPendentes(projeto: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiPost<{ ignoradas: number }>(`/api/triagem/ignorar-pendentes?projeto=${encodeURIComponent(projeto)}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['triagem', projeto] }),
   })
 }
 

@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /** API da triagem: fila de falhas, análise com IA e revisão do QA. */
@@ -40,7 +42,8 @@ public class TriagemController {
         }
     }
 
-    public record PublicarRequest(String demanda) {}
+    /** @param novoBug true = cria outro bug mesmo o teste já tendo um (o antigo foi fechado) */
+    public record PublicarRequest(String demanda, Boolean novoBug) {}
 
     /**
      * POST /api/triagem/{resultadoId}/publicar → cria o bug no Jira a partir da
@@ -48,16 +51,51 @@ public class TriagemController {
      */
     @PostMapping("/{resultadoId}/publicar")
     public PublicacaoJiraService.Publicacao publicar(@PathVariable Long resultadoId, @RequestBody(required = false) PublicarRequest r) {
-        return publicacao.publicar(resultadoId, r == null ? null : r.demanda());
+        return publicacao.publicar(resultadoId, r == null ? null : r.demanda(), r != null && Boolean.TRUE.equals(r.novoBug()));
     }
 
+    /** POST /api/triagem/{resultadoId}/comentar → falha recorrente: comenta a nova ocorrência no bug existente. */
+    @PostMapping("/{resultadoId}/comentar")
+    public PublicacaoJiraService.Comentario comentar(@PathVariable Long resultadoId) {
+        return publicacao.comentarOcorrencia(resultadoId);
+    }
+
+    /** POST /api/triagem/{resultadoId}/ignorar → tira esta ocorrência da fila sem publicar (204). */
+    @PostMapping("/{resultadoId}/ignorar")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void ignorar(@PathVariable Long resultadoId) {
+        service.ignorar(resultadoId);
+    }
+
+    public record IgnoradasResponse(int ignoradas) {}
+
+    /** POST /api/triagem/ignorar-pendentes?projeto=cypress → ignora todas as falhas ainda não triadas. */
+    @PostMapping("/ignorar-pendentes")
+    public IgnoradasResponse ignorarPendentes(@RequestParam String projeto) {
+        return new IgnoradasResponse(service.ignorarPendentes(projeto));
+    }
+
+    /** Uma ação do painel no Jira por este teste. */
+    public record VinculoResponse(String chave, String url, JiraVinculo.Acao acao, Instant em) {
+        static VinculoResponse de(JiraVinculo v) {
+            return new VinculoResponse(v.getJiraIssue(), v.getJiraUrl(), v.getAcao(), v.getCriadoEm());
+        }
+    }
+
+    /**
+     * @param recorrente já tem bug publicado e voltou a falhar depois disso
+     * @param vinculos   histórico no Jira (mais recente primeiro)
+     */
     public record FalhaResponse(
             Long resultadoId, Long execucaoId, String spec, String titulo, String chave, String mensagemErro,
-            String tipoErro, Instant ocorridaEm, String navegador, TriagemResponse triagem) {
+            String tipoErro, Instant ocorridaEm, String navegador, TriagemResponse triagem,
+            boolean recorrente, List<VinculoResponse> vinculos) {
 
-        static FalhaResponse de(FalhaEmAberto f, Triagem t) {
+        static FalhaResponse de(TriagemService.ItemFila i) {
+            FalhaEmAberto f = i.falha();
             return new FalhaResponse(f.getResultadoId(), f.getExecucaoId(), f.getSpec(), f.getTitulo(), f.getChave(),
-                    f.getMensagemErro(), f.getTipoErro(), f.getOcorridaEm(), f.getNavegador(), TriagemResponse.de(t));
+                    f.getMensagemErro(), f.getTipoErro(), f.getOcorridaEm(), f.getNavegador(), TriagemResponse.de(i.triagem()),
+                    i.recorrente(), i.vinculos().stream().map(VinculoResponse::de).toList());
         }
     }
 
@@ -67,7 +105,7 @@ public class TriagemController {
     /** GET /api/triagem?projeto=cypress → testes que falham hoje, com a triagem de cada um. */
     @GetMapping
     public List<FalhaResponse> listar(@RequestParam String projeto) {
-        return service.listar(projeto).stream().map(i -> FalhaResponse.de(i.falha(), i.triagem())).toList();
+        return service.listar(projeto).stream().map(FalhaResponse::de).toList();
     }
 
     /** POST /api/triagem/{resultadoId}/analisar → gera o rascunho do bug com IA (ou heurística). */

@@ -194,6 +194,78 @@ describe('Triagem', () => {
   })
 })
 
+describe('Triagem: recorrência e ignorar', () => {
+  const comJiraConfigurado = {
+    ...configuracoes,
+    jira: { url: 'https://empresa.atlassian.net', email: 'qa@x.com', projeto: 'DEV', tipoIssue: 'Bug', tokenConfigurado: true, configurado: true },
+  }
+  const publicada = { ...rascunhoIa, classificacao: 'BUG_APLICACAO', jiraIssue: 'DEV-2', jiraUrl: 'https://x/browse/DEV-2', demanda: 'DEV-1' }
+  const recorrente = {
+    ...falhaPendente, execucaoId: 9, triagem: publicada, recorrente: true,
+    vinculos: [{ chave: 'DEV-2', url: 'https://x/browse/DEV-2', acao: 'CRIADO', em: '2026-09-28T23:59:00Z' }],
+  }
+  const rotasBase = {
+    '/actuator/health': { status: 'UP' },
+    '/api/projetos': projetos,
+    '/api/projetos/cypress': cypress,
+    '/api/execucoes/em-andamento': [204, null],
+    '/api/configuracoes': comJiraConfigurado,
+  }
+
+  it('falha recorrente aparece como "Recorrente" e comenta a nova ocorrência no bug existente', async () => {
+    const fetchDoTeste = apiFalsa({
+      ...rotasBase,
+      '/api/triagem?projeto=cypress': [recorrente],
+      '/api/triagem/2/comentar': { chave: 'DEV-2', url: 'https://x/browse/DEV-2' },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/triagem/2' })
+
+    expect(await screen.findByText('Recorrente')).toBeInTheDocument() // selo na fila
+    const bloco = await screen.findByLabelText('Falha recorrente')
+    expect(bloco).toHaveTextContent('voltou a falhar na execução #9')
+    expect(screen.getByLabelText('Histórico no Jira')).toHaveTextContent('bug criado')
+
+    await user.click(within(bloco).getByRole('button', { name: 'Comentar nova ocorrência no DEV-2' }))
+
+    await vi.waitFor(() =>
+      expect(fetchDoTeste).toHaveBeenCalledWith('/api/triagem/2/comentar', expect.objectContaining({ method: 'POST' })),
+    )
+    const chamadas = fetchDoTeste.mock.calls as unknown as [string, RequestInit | undefined][]
+    expect(chamadas.some(([u]) => u === '/api/triagem/2/publicar')).toBe(false) // não criou bug novo
+  })
+
+  it('"Ignorar" tira a falha da fila sem publicar', async () => {
+    const fetchDoTeste = apiFalsa({
+      ...rotasBase,
+      '/api/triagem?projeto=cypress': [{ ...falhaPendente, recorrente: false, vinculos: [] }],
+      '/api/triagem/2/ignorar': [204, null],
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/triagem/2' })
+
+    await user.click(await screen.findByRole('button', { name: 'Ignorar' }))
+
+    await vi.waitFor(() =>
+      expect(fetchDoTeste).toHaveBeenCalledWith('/api/triagem/2/ignorar', expect.objectContaining({ method: 'POST' })),
+    )
+  })
+
+  it('"Ignorar pendentes" conta só as falhas ainda não triadas', async () => {
+    apiFalsa({
+      ...rotasBase,
+      '/api/triagem?projeto=cypress': [
+        { ...falhaPendente, recorrente: false, vinculos: [] },
+        { ...recorrente, resultadoId: 5 },
+      ],
+    })
+    renderComApp(<App />, { rota: '/triagem' })
+
+    expect(await screen.findByRole('button', { name: 'Ignorar pendentes (1)' })).toBeEnabled()
+  })
+})
+
 describe('Jira', () => {
   const comJira = {
     ...configuracoes,
@@ -225,7 +297,7 @@ describe('Jira', () => {
       expect(indice('/api/triagem/2', 'PUT')).toBeGreaterThanOrEqual(0)
     })
     const publicar = (fetchDoTeste.mock.calls as unknown as [string, RequestInit][]).find(([u]) => u === '/api/triagem/2/publicar')!
-    expect(JSON.parse(String(publicar[1].body))).toEqual({ demanda: 'DEV-1' })
+    expect(JSON.parse(String(publicar[1].body))).toEqual({ demanda: 'DEV-1', novoBug: false })
   })
 
   it('depois de publicar, continua na mesma falha e mostra o bug criado (não pula para a próxima)', async () => {

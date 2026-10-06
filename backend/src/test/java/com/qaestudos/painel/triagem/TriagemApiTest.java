@@ -69,6 +69,24 @@ class TriagemApiTest {
     }
 
     @Test
+    void ignorarTiraEstaOcorrenciaDaFilaMasUmaFalhaNovaVolta() {
+        assertThat(mvc.post().uri("/api/triagem/{id}/ignorar", resultadoQueFalha)).hasStatus(204);
+        assertThat(mvc.get().uri("/api/triagem?projeto=k6")).bodyJson().isLenientlyEqualTo("[]");
+
+        execucao(Instant.parse("2026-09-29T10:00:00Z"), StatusTeste.FALHOU, StatusTeste.PASSOU); // falhou de novo amanhã
+
+        assertThat(mvc.get().uri("/api/triagem?projeto=k6")).bodyJson()
+                .isLenientlyEqualTo("[{\"titulo\":\"Login › ok\"}]");
+    }
+
+    @Test
+    void ignorarPendentesIgnoraSoAsAindaNaoTriadas() {
+        assertThat(mvc.post().uri("/api/triagem/ignorar-pendentes?projeto=k6")).hasStatusOk().bodyJson()
+                .isLenientlyEqualTo("{\"ignoradas\":1}");
+        assertThat(mvc.get().uri("/api/triagem?projeto=k6")).bodyJson().isLenientlyEqualTo("[]");
+    }
+
+    @Test
     void filaTemSoOQueAindaFalhaNaExecucaoMaisRecente() {
         assertThat(mvc.get().uri("/api/triagem?projeto=k6"))
                 .hasStatusOk()

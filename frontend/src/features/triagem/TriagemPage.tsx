@@ -10,12 +10,16 @@ import {
   SEVERIDADES,
   pendente,
   useAnalisar,
+  useComentarOcorrencia,
+  useIgnorar,
+  useIgnorarPendentes,
   useFilaTriagem,
   usePublicarNoJira,
   useSalvarTriagem,
   type Classificacao,
   type FalhaTriagem,
   type Publicacao,
+  type VinculoJira,
   type Severidade,
 } from './api'
 
@@ -108,6 +112,7 @@ export function TriagemPage() {
                   Todas ({fila.length})
                 </button>
               </div>
+              <IgnorarPendentes projeto={projeto} quantas={fila.filter((f) => !f.triagem?.classificacao && !f.recorrente).length} />
             </div>
             <div className="list" style={{ marginTop: 8, maxHeight: 640, overflow: 'auto' }}>
               {lista.length === 0 && <div className="empty">Fila vazia: todas as falhas já foram triadas.</div>}
@@ -125,7 +130,9 @@ export function TriagemPage() {
                       {f.spec.split('/').pop()} · {f.tipoErro ?? 'erro'} · {fmtData(f.ocorridaEm)}
                     </div>
                   </div>
-                  {f.triagem?.classificacao ? (
+                  {f.recorrente ? (
+                    <Badge tom="warn">Recorrente</Badge>
+                  ) : f.triagem?.classificacao ? (
                     <Badge tom={CLASSIFICACOES[f.triagem.classificacao].tom}>Triado</Badge>
                   ) : (
                     <Badge tom="warn">Pendente</Badge>
@@ -185,6 +192,9 @@ function Detalhe({ falha, projeto, iaAtiva, onPublicado, etapaEnvio, setEtapaEnv
   const analisar = useAnalisar(projeto)
   const salvar = useSalvarTriagem(projeto)
   const publicar = usePublicarNoJira(projeto)
+  const comentar = useComentarOcorrencia(projeto)
+  const ignorar = useIgnorar(projeto)
+  const navigate = useNavigate()
   const { data: config } = useConfiguracoes()
   const jiraConfigurado = !!config?.jira.configurado
   // Sugere a demanda a partir do título do teste: "Login [DEV-1] › ..." → DEV-1.
@@ -215,14 +225,14 @@ function Detalhe({ falha, projeto, iaAtiva, onPublicado, etapaEnvio, setEtapaEnv
   // antes de o React redesenhar: cada clique a mais criaria um bug duplicado.
   const enviando = etapaEnvio
   const setEnviando = setEtapaEnvio
-  const publicarNoJira = async () => {
+  const publicarNoJira = async (novoBug = false) => {
     if (emEnvio.current) return
     emEnvio.current = true
     try {
       setEnviando('salvando')
       await salvar.mutateAsync({ resultadoId: falha.resultadoId, revisao: revisao() })
       setEnviando('publicando')
-      onPublicado(await publicar.mutateAsync({ resultadoId: falha.resultadoId, demanda: demanda.trim() }))
+      onPublicado(await publicar.mutateAsync({ resultadoId: falha.resultadoId, demanda: demanda.trim(), novoBug }))
     } catch {
       // o erro (do salvamento ou do Jira) já aparece na tela
     } finally {
@@ -238,6 +248,18 @@ function Detalhe({ falha, projeto, iaAtiva, onPublicado, etapaEnvio, setEtapaEnv
         <div className="card-head">
           <span className="eyebrow">Falha</span>
           <div className="btn-row">
+            <button
+              className="btn ghost sm"
+              type="button"
+              title="Tira esta ocorrência da fila sem publicar. Se o teste falhar de novo, ela volta."
+              disabled={ignorar.isPending}
+              onClick={() => {
+                if (!window.confirm('Ignorar esta falha? Ela sai da fila sem virar bug. Se o teste falhar de novo, volta.')) return
+                ignorar.mutate(falha.resultadoId, { onSuccess: () => navigate('/triagem', { replace: true }) })
+              }}
+            >
+              {ignorar.isPending ? 'Ignorando…' : 'Ignorar'}
+            </button>
             {falha.tipoErro && <Badge tom="bad">{falha.tipoErro}</Badge>}
             {t?.classificacao && <Badge tom={CLASSIFICACOES[t.classificacao].tom}>{CLASSIFICACOES[t.classificacao].rotulo}</Badge>}
           </div>
@@ -360,12 +382,48 @@ function Detalhe({ falha, projeto, iaAtiva, onPublicado, etapaEnvio, setEtapaEnv
             <span className="eyebrow">Jira</span>
             {t?.jiraIssue && <Badge tom="bad">Bug publicado</Badge>}
           </div>
-          {t?.jiraIssue ? (
+          {t?.jiraIssue && falha.recorrente ? (
+            <div className="stack" aria-label="Falha recorrente">
+              <div className="note atencao" role="status">
+                <b>🔁 Falha recorrente.</b> Este teste já tem o bug{' '}
+                <a href={t.jiraUrl ?? '#'} target="_blank" rel="noopener">{t.jiraIssue} ↗</a>, e voltou a falhar na execução #
+                {falha.execucaoId}. Comente a nova ocorrência no bug existente; crie um bug novo só se o antigo foi fechado.
+              </div>
+              <div className="btn-row">
+                <button
+                  className="btn primary"
+                  type="button"
+                  disabled={comentar.isPending || !!enviando}
+                  aria-busy={comentar.isPending}
+                  onClick={() => comentar.mutate(falha.resultadoId)}
+                >
+                  {comentar.isPending ? (
+                    <>
+                      <span className="spinner" aria-hidden="true" /> Comentando no {t.jiraIssue}…
+                    </>
+                  ) : (
+                    `Comentar nova ocorrência no ${t.jiraIssue}`
+                  )}
+                </button>
+                <button className="btn sm" type="button" disabled={comentar.isPending || !!enviando} onClick={() => publicarNoJira(true)}>
+                  {enviando ? (
+                    <>
+                      <span className="spinner" aria-hidden="true" /> {enviando === 'salvando' ? 'Salvando a triagem…' : 'Criando o bug no Jira…'}
+                    </>
+                  ) : (
+                    'Criar novo bug'
+                  )}
+                </button>
+              </div>
+              {comentar.error && <div className="note" role="alert" style={{ color: 'var(--red)' }}>{comentar.error.message}</div>}
+            </div>
+          ) : t?.jiraIssue ? (
             <div className="btn-row">
               <a className="btn green" href={t.jiraUrl ?? '#'} target="_blank" rel="noopener">
                 {t.jiraIssue} no Jira ↗
               </a>
               {t.demanda && <span className="hint">ligado à demanda {t.demanda}</span>}
+              {comentar.isSuccess && <span className="hint" role="status">✓ Nova ocorrência comentada em {comentar.data.chave}.</span>}
             </div>
           ) : !jiraConfigurado ? (
             <div className="note">
@@ -385,7 +443,7 @@ function Detalhe({ falha, projeto, iaAtiva, onPublicado, etapaEnvio, setEtapaEnv
                 <button
                   className="btn primary"
                   type="button"
-                  onClick={publicarNoJira}
+                  onClick={() => publicarNoJira()}
                   disabled={!!enviando || publicar.isPending || salvar.isPending || !titulo.trim()}
                   aria-busy={!!enviando}
                 >
@@ -401,6 +459,7 @@ function Detalhe({ falha, projeto, iaAtiva, onPublicado, etapaEnvio, setEtapaEnv
               </div>
             </>
           )}
+          {(falha.vinculos ?? []).length > 0 && <HistoricoJira vinculos={falha.vinculos} />}
           {publicar.data?.aviso && <div className="note" role="alert" style={{ marginTop: 10 }}>{publicar.data.aviso}</div>}
           {publicar.error && (
             <div className="note" role="alert" style={{ marginTop: 10, color: 'var(--red)' }}>
@@ -410,5 +469,41 @@ function Detalhe({ falha, projeto, iaAtiva, onPublicado, etapaEnvio, setEtapaEnv
         </article>
       )}
     </div>
+  )
+}
+
+/** O que o painel já fez no Jira por este teste: "já reportado" mesmo depois de várias falhas. */
+function HistoricoJira({ vinculos }: { vinculos: VinculoJira[] }) {
+  return (
+    <div style={{ marginTop: 12 }} aria-label="Histórico no Jira">
+      <span className="eyebrow" style={{ display: 'block', marginBottom: 6 }}>🔗 Histórico no Jira</span>
+      <ul className="historico-jira">
+        {vinculos.map((v, i) => (
+          <li key={i}>
+            <a href={v.url ?? '#'} target="_blank" rel="noopener">{v.chave}</a>
+            <span>{v.acao === 'CRIADO' ? 'bug criado' : 'nova ocorrência comentada'}</span>
+            <span className="hint">{fmtData(v.em)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** "Ignorar pendentes": tira da fila as falhas ainda não triadas (as triadas e recorrentes ficam). */
+function IgnorarPendentes({ projeto, quantas }: { projeto: string; quantas: number }) {
+  const ignorar = useIgnorarPendentes(projeto)
+  return (
+    <button
+      className="btn ghost sm"
+      type="button"
+      disabled={quantas === 0 || ignorar.isPending}
+      title="Tira da fila as falhas ainda não triadas, sem publicar. Se voltarem a falhar, reaparecem."
+      onClick={() => {
+        if (window.confirm(`Ignorar ${quantas} falha(s) ainda não triada(s)? Elas saem da fila sem virar bug.`)) ignorar.mutate()
+      }}
+    >
+      {ignorar.isPending ? 'Ignorando…' : `Ignorar pendentes (${quantas})`}
+    </button>
   )
 }

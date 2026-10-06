@@ -11,6 +11,10 @@ import com.qaestudos.painel.triagem.Severidade;
 import com.qaestudos.painel.triagem.Triagem;
 import com.qaestudos.painel.triagem.TriagemRepository;
 import java.time.Clock;
+import com.qaestudos.painel.triagem.JiraVinculoRepository;
+import com.qaestudos.painel.triagem.JiraVinculo;
+import java.util.Map;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -39,15 +43,18 @@ public class PublicacaoJiraService {
             .withZone(ZoneId.of("America/Sao_Paulo"));
 
     private final TriagemRepository triagens;
+    private final JiraVinculoRepository vinculos;
     private final ResultadoTesteRepository resultados;
     private final ProjetoService projetos;
     private final JiraCliente jira;
     private final TransactionTemplate tx;
     private final Clock clock;
 
-    public PublicacaoJiraService(TriagemRepository triagens, ResultadoTesteRepository resultados, ProjetoService projetos,
+    public PublicacaoJiraService(TriagemRepository triagens, JiraVinculoRepository vinculos, ResultadoTesteRepository resultados,
+                                 ProjetoService projetos,
                                  JiraCliente jira, TransactionTemplate tx, Clock clock) {
         this.triagens = triagens;
+        this.vinculos = vinculos;
         this.resultados = resultados;
         this.projetos = projetos;
         this.jira = jira;
@@ -116,36 +123,99 @@ public class PublicacaoJiraService {
     private record Alvo(Long triagemId, JiraCliente.NovoBug bug) {}
 
     public Publicacao publicar(Long resultadoId, String demandaDigitada) {
-        String demanda = demandaDigitada == null || demandaDigitada.isBlank() ? null : chave(demandaDigitada);
-        Alvo alvo = tx.execute(s -> preparar(resultadoId));                      // 1. lê e valida
-
-        JiraCliente.Issue bug = jira.criarBug(alvo.bug());                         // 2. Jira, sem banco
-        String aviso = null;
-        if (demanda != null) {
-            try {
-                jira.vincular(bug.chave(), demanda);
-            } catch (RuntimeException e) {
-                // O bug JÁ existe no Jira: não desfaz; registra e avisa o QA.
-                log.warn("Bug {} criado, mas não foi possível ligá-lo a {}", bug.chave(), demanda, e);
-                aviso = "Bug criado, mas não foi possível ligá-lo a %s. Faça a ligação manualmente no Jira.".formatted(demanda);
-            }
-        }
-        tx.executeWithoutResult(s -> triagens.findById(alvo.triagemId()).orElseThrow()      // 3. grava
-                .registrarPublicacao(bug.chave(), bug.url(), demanda, clock.instant()));
-        return new Publicacao(bug.chave(), bug.url(), demanda, aviso);
+        return publicar(resultadoId, demandaDigitada, false);
     }
 
-    private Alvo preparar(Long resultadoId) {
+    /**
+     * Cria o bug no Jira e o liga à demanda.
+     *
+     * @param novoBug true = cria um bug NOVO mesmo o teste já tendo um (ex.: o
+     *                antigo foi fechado e a falha voltou). Sem isso, 409.
+     */
+    public Publicacao publicar(Long resultadoId, String demandaDigitada, boolean novoBug) {
+        String demanda = demandaDigitada == null || demandaDigitada.isBlank() ? null : chave(demandaDigitada);
+        Alvo alvo = tx.execute(s -> preparar(resultadoId, novoBug));            // 1. lê, valida e RESERVA
+        try {
+            JiraCliente.Issue bug = jira.criarBug(alvo.bug());                     // 2. Jira, sem banco
+            String aviso = null;
+            if (demanda != null) {
+                try {
+                    jira.vincular(bug.chave(), demanda);
+                } catch (RuntimeException e) {
+                    // O bug JÁ existe no Jira: não desfaz; registra e avisa o QA.
+                    log.warn("Bug {} criado, mas não foi possível ligá-lo a {}", bug.chave(), demanda, e);
+                    aviso = "Bug criado, mas não foi possível ligá-lo a %s. Faça a ligação manualmente no Jira.".formatted(demanda);
+                }
+            }
+            tx.executeWithoutResult(s -> {                                         // 3. grava + histórico
+                Triagem t = triagens.findById(alvo.triagemId()).orElseThrow();
+                t.registrarPublicacao(bug.chave(), bug.url(), demanda, clock.instant());
+                vinculos.save(new JiraVinculo(t.getProjetoId(), t.getChaveTeste(), resultadoId, bug.chave(), bug.url(),
+                        JiraVinculo.Acao.CRIADO, clock.instant()));
+            });
+            return new Publicacao(bug.chave(), bug.url(), demanda, aviso);
+        } finally {
+            tx.executeWithoutResult(s -> triagens.liberarPublicacao(alvo.triagemId()));
+        }
+    }
+
+    public record Comentario(String chave, String url) {}
+
+    /**
+     * Falha RECORRENTE: em vez de criar outro bug, comenta a nova ocorrência no
+     * bug que já existe (execução, data, navegador e o erro de agora).
+     */
+    public Comentario comentarOcorrencia(Long resultadoId) {
+        AlvoComentario a = tx.execute(s -> prepararComentario(resultadoId));
+        jira.comentar(a.issue(), a.corpo());
+        tx.executeWithoutResult(s -> {
+            Triagem t = triagens.findById(a.triagemId()).orElseThrow();
+            t.registrarComentario(resultadoId);
+            vinculos.save(new JiraVinculo(t.getProjetoId(), t.getChaveTeste(), resultadoId, a.issue(), a.url(),
+                    JiraVinculo.Acao.COMENTADO, clock.instant()));
+        });
+        return new Comentario(a.issue(), a.url());
+    }
+
+    private record AlvoComentario(Long triagemId, String issue, String url, Map<String, Object> corpo) {}
+
+    private AlvoComentario prepararComentario(Long resultadoId) {
+        ResultadoTeste r = resultados.buscarComExecucao(resultadoId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Resultado de teste %d não existe.".formatted(resultadoId)));
+        Triagem t = triagens.findByProjetoIdAndChaveTeste(r.getExecucao().getProjetoId(), r.getChave())
+                .filter(Triagem::publicada)
+                .orElseThrow(() -> new RequisicaoInvalidaException("Este teste ainda não tem bug no Jira para comentar."));
+        if (resultadoId.equals(t.getComentadoResultadoId())) {
+            throw new ConflitoException("Esta ocorrência já foi comentada em %s.".formatted(t.getJiraIssue()));
+        }
+        var corpo = new DocumentoAdf()
+                .paragrafo("Nova ocorrência desta falha, detectada pelo QA Panel Pro.")
+                .titulo("Teste")
+                .paragrafo(r.getSpec() + " › " + r.getTitulo())
+                .titulo("Erro desta execução")
+                .codigo(r.getMensagemErro())
+                .paragrafo("Execução #%d em %s · navegador: %s".formatted(r.getExecucao().getId(),
+                        DATA.format(r.getExecucao().getIniciadaEm()), valor(r.getExecucao().getNavegador())))
+                .montar();
+        return new AlvoComentario(t.getId(), t.getJiraIssue(), t.getJiraUrl(), corpo);
+    }
+
+    private Alvo preparar(Long resultadoId, boolean novoBug) {
         ResultadoTeste r = resultados.buscarComExecucao(resultadoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Resultado de teste %d não existe.".formatted(resultadoId)));
         String projetoId = r.getExecucao().getProjetoId();
         Triagem t = triagens.findByProjetoIdAndChaveTeste(projetoId, r.getChave())
                 .orElseThrow(() -> new RequisicaoInvalidaException("Salve a triagem antes de publicar no Jira."));
-        if (t.publicada()) {
+        if (t.publicada() && !novoBug) {
             throw new ConflitoException("Este teste já tem bug publicado: %s (%s).".formatted(t.getJiraIssue(), t.getJiraUrl()));
         }
         if (t.getTitulo() == null || t.getTitulo().isBlank()) {
             throw new RequisicaoInvalidaException("A triagem precisa de um título para virar bug no Jira.");
+        }
+        // Reserva ATÔMICA: um segundo pedido simultâneo (clique duplo, duas abas) para aqui.
+        Instant agora = clock.instant();
+        if (triagens.reservarPublicacao(t.getId(), agora, agora.minus(Duration.ofMinutes(2))) == 0) {
+            throw new ConflitoException("A publicação deste bug já está em andamento. Aguarde alguns segundos.");
         }
         Projeto projeto = projetos.buscar(projetoId);
         var descricao = new DocumentoAdf()
