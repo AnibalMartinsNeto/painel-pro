@@ -453,6 +453,51 @@ describe('Jira', () => {
     expect(JSON.parse(String(post[1]!.body))).toMatchObject({ veredito: 'REPROVADA', resumo: 'Revisado pelo QA' })
   })
 
+  it('casos de teste: o QA edita, desmarca e publica só os escolhidos', async () => {
+    const fetchDoTeste = apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': comJira,
+      '/api/jira/bugs?projeto=cypress': [],
+      '/api/jira/demandas/DEV-1?projeto=cypress': {
+        chave: 'DEV-1', erro: null, specs: [], origem: null,
+        issue: { chave: 'DEV-1', resumo: 'Login do administrador', tipo: 'Story', status: 'Aberto', url: 'https://x/browse/DEV-1' },
+      },
+      '/api/demandas/DEV-1/casos-de-teste?projeto=cypress': {
+        chave: 'DEV-1', titulo: 'Login do administrador', url: 'https://x/browse/DEV-1', modelo: 'gemini-teste',
+        casos: [
+          { titulo: 'Login válido', tipo: 'POSITIVO', preCondicoes: null, passos: ['abrir', 'entrar'], resultadoEsperado: 'home',
+            regra: 'LOG-04', automatizado: true, evidencia: 'login.cy.js › deve logar' },
+          { titulo: 'Duplicado', tipo: 'NEGATIVO', preCondicoes: null, passos: ['x'], resultadoEsperado: 'y',
+            regra: null, automatizado: false, evidencia: null },
+        ],
+      },
+      '/api/demandas/DEV-1/casos-de-teste/publicar': { chave: 'DEV-1', url: 'https://x/browse/DEV-1', casos: 1 },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/jira' })
+
+    await user.type(await screen.findByLabelText('Chave da issue'), 'DEV-1')
+    await user.click(screen.getByRole('button', { name: 'Buscar' }))
+    await user.click(await screen.findByRole('button', { name: /Casos de teste de DEV-1/ }))
+
+    const titulo = await screen.findByLabelText('Título do caso 1')
+    await user.clear(titulo)
+    await user.type(titulo, 'Login do admin válido')
+    await user.click(within(screen.getByLabelText('Caso 2')).getByRole('checkbox')) // desmarca o duplicado
+    await user.click(screen.getByRole('button', { name: 'Comentar 1 caso em DEV-1' }))
+
+    expect(await screen.findByText(/1 caso comentado em/)).toBeInTheDocument()
+    const post = (fetchDoTeste.mock.calls as unknown as [string, RequestInit | undefined][])
+      .find(([u]) => u === '/api/demandas/DEV-1/casos-de-teste/publicar')!
+    const enviados = JSON.parse(String(post[1]!.body))
+    expect(enviados).toHaveLength(1)
+    expect(enviados[0]).toMatchObject({ titulo: 'Login do admin válido', passos: ['abrir', 'entrar'], regra: 'LOG-04' })
+    expect(enviados[0]).not.toHaveProperty('incluir')
+  })
+
   it('busca a demanda e lista os specs que a citam', async () => {
     apiFalsa({
       '/actuator/health': { status: 'UP' },

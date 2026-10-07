@@ -135,3 +135,39 @@ export function usePublicarValidacao() {
       apiPost<{ chave: string; url: string }>(`/api/demandas/${encodeURIComponent(chave)}/validacao/publicar`, relatorio),
   })
 }
+
+export type TipoCaso = 'POSITIVO' | 'NEGATIVO' | 'LIMITE'
+
+export interface CasoTeste {
+  titulo: string
+  tipo: TipoCaso
+  preCondicoes: string | null
+  passos: string[]
+  resultadoEsperado: string | null
+  regra: string | null
+  automatizado: boolean
+  evidencia: string | null
+}
+
+export interface RascunhoCasos {
+  chave: string
+  titulo: string
+  url: string
+  casos: CasoTeste[]
+  modelo: string
+}
+
+/** Casos de teste da demanda (IA). Só roda quando o QA clica. */
+export function useRascunhoCasos(projeto: string) {
+  return useMutation({
+    mutationFn: (chave: string) =>
+      apiPost<RascunhoCasos>(`/api/demandas/${encodeURIComponent(chave)}/casos-de-teste?projeto=${encodeURIComponent(projeto)}`),
+  })
+}
+
+export function usePublicarCasos() {
+  return useMutation({
+    mutationFn: ({ chave, casos }: { chave: string; casos: CasoTeste[] }) =>
+      apiPost<{ chave: string; url: string; casos: number }>(`/api/demandas/${encodeURIComponent(chave)}/casos-de-teste/publicar`, casos),
+  })
+}

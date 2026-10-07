@@ -216,6 +216,8 @@ A **chave-mestra** que decifra os segredos fica fora do banco e do Git:
 | `POST /api/demandas/{chave}/cobertura?projeto=` | **Mapa de cobertura (IA)**: lê a demanda no Jira (título e descrição), junta o resumo de cada spec que a cita em TODOS os projetos de teste (Cypress, Playwright, k6) e as regras de negócio, e devolve requisito por requisito: coberto / parcial / sem teste, com a evidência e um cenário sugerido. Só leitura |
 | `POST /api/demandas/{chave}/validacao` | **Relatório de validação**: resultados da execução real mais recente de cada spec que cita a demanda (todos os projetos). Veredito pelos FATOS (tudo passou = APROVADA); a IA só descreve o que cada teste validou e as pendências (sem IA, rascunho direto dos resultados) |
 | `POST /api/demandas/{chave}/validacao/publicar` | Comenta o relatório revisado na demanda (ADF) |
+| `POST /api/demandas/{chave}/casos-de-teste?projeto=` | **Casos de teste (IA)**: positivos, negativos e de limite a partir da demanda, das regras e dos testes existentes; cada caso ligado à regra e marcado se já tem automação |
+| `POST /api/demandas/{chave}/casos-de-teste/publicar` | Comenta os casos revisados na demanda (funciona em qualquer Jira, sem tipo de issue especial) |
 | `GET /api/jira/issues?maximo=50` | Últimas issues do projeto no Jira, de qualquer origem (busca JQL na hora), com status e a marca `doPainel` (etiqueta `qa-panel`) |
 
 - **Rastreabilidade pela chave:** o teste leva a chave da demanda no nome (`describe("Login - ServeRest [DEV-1]")`). O painel acha os specs que a citam e sugere a demanda na hora de publicar.

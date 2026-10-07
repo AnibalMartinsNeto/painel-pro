@@ -1,5 +1,6 @@
 package com.qaestudos.painel.demanda;
 
+import java.util.List;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,10 +15,24 @@ public class DemandaController {
 
     private final CoberturaDemandaService cobertura;
     private final ValidacaoDemandaService validacao;
+    private final CasoTesteService casos;
 
-    public DemandaController(CoberturaDemandaService cobertura, ValidacaoDemandaService validacao) {
+    public DemandaController(CoberturaDemandaService cobertura, ValidacaoDemandaService validacao, CasoTesteService casos) {
         this.cobertura = cobertura;
         this.validacao = validacao;
+        this.casos = casos;
+    }
+
+    /** POST /api/demandas/DEV-1/casos-de-teste?projeto=playwright → rascunho dos casos de teste (IA). */
+    @PostMapping("/{chave}/casos-de-teste")
+    public CasoTesteService.Rascunho casosDeTeste(@PathVariable String chave, @RequestParam String projeto) {
+        return casos.rascunho(projeto, chave);
+    }
+
+    /** POST /api/demandas/DEV-1/casos-de-teste/publicar → comenta os casos revisados na demanda. */
+    @PostMapping("/{chave}/casos-de-teste/publicar")
+    public CasoTesteService.Publicado publicarCasos(@PathVariable String chave, @RequestBody List<CasoTesteService.Caso> revisados) {
+        return casos.publicar(chave, revisados);
     }
 
     /**

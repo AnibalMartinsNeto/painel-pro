@@ -336,3 +336,5 @@ ul.spec-list { list-style: none; padding: 0; margin: 12px 0 0; }
 .markdown hr { border: 0; border-top: 1px solid var(--card-border); margin: 18px 0; }
 .markdown a { color: var(--blue); }
 .markdown .tbl-wrap { margin: 10px 0; }
+
+.caso-teste { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--inner-border); border-radius: 10px; background: #10131a; }

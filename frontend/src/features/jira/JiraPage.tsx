@@ -11,8 +11,11 @@ import {
   useCoberturaDemanda,
   useDemanda,
   useHistoricoJira,
+  usePublicarCasos,
   usePublicarValidacao,
+  useRascunhoCasos,
   useRascunhoValidacao,
+  type CasoTeste,
   type RascunhoValidacao,
   type SituacaoRequisito,
 } from './api'
@@ -103,6 +106,7 @@ export function JiraPage() {
             )}
             {d.issue && !d.origem && <MapaCobertura projeto={projeto} chave={d.chave} />}
             {d.issue && !d.origem && <RelatorioValidacao chave={d.chave} />}
+            {d.issue && !d.origem && <CasosDeTeste projeto={projeto} chave={d.chave} />}
             {d.origem && (
               <div className="note" style={{ margin: '10px 0' }} aria-label="Origem do bug">
                 <b>{d.chave} foi publicado pelo painel</b> a partir da falha do teste
@@ -425,6 +429,118 @@ function EditorValidacao({ rascunho: r }: { rascunho: RascunhoValidacao }) {
         {publicar.isSuccess && (
           <span className="hint" role="status">
             ✓ Relatório comentado em{' '}
+            <a href={publicar.data.url} target="_blank" rel="noopener">
+              {publicar.data.chave} ↗
+            </a>
+          </span>
+        )}
+      </div>
+      {publicar.error && <ErroApi erro={publicar.error} />}
+    </div>
+  )
+}
+
+const TOM_TIPO = { POSITIVO: 'ok', NEGATIVO: 'bad', LIMITE: 'warn' } as const
+
+/**
+ * Casos de teste da demanda: a IA propõe (positivos, negativos e de limite,
+ * ligados às regras e marcando o que já tem automação), o QA edita e publica
+ * como comentário na demanda.
+ */
+function CasosDeTeste({ projeto, chave }: { projeto: string; chave: string }) {
+  const rascunho = useRascunhoCasos(projeto)
+  return (
+    <div className="stack" style={{ marginTop: 12 }} aria-label="Casos de teste">
+      <div className="btn-row">
+        <button className="btn sm" type="button" onClick={() => rascunho.mutate(chave)} disabled={rascunho.isPending}>
+          {rascunho.isPending ? (
+            <>
+              <span className="spinner" aria-hidden="true" /> Escrevendo os casos de teste de {chave}…
+            </>
+          ) : rascunho.data ? (
+            'Gerar os casos de novo'
+          ) : (
+            `🧪 Casos de teste de ${chave} (IA)`
+          )}
+        </button>
+        <span className="hint">Positivos, negativos e de limite, ligados às regras. Você revisa antes de publicar.</span>
+      </div>
+      {rascunho.error && <ErroApi erro={rascunho.error} />}
+      {rascunho.data && <EditorCasos key={JSON.stringify(rascunho.data)} chave={chave} iniciais={rascunho.data.casos} modelo={rascunho.data.modelo} />}
+    </div>
+  )
+}
+
+function EditorCasos({ chave, iniciais, modelo }: { chave: string; iniciais: CasoTeste[]; modelo: string }) {
+  const publicar = usePublicarCasos()
+  const [casos, setCasos] = useState(iniciais.map((c) => ({ ...c, passosTexto: c.passos.join('\n'), incluir: true })))
+  const alterar = (i: number, campo: string, valor: string | boolean) =>
+    setCasos((atual) => atual.map((c, j) => (j === i ? { ...c, [campo]: valor } : c)))
+  const escolhidos = casos.filter((c) => c.incluir)
+  const automatizados = escolhidos.filter((c) => c.automatizado).length
+  return (
+    <div className="stack">
+      <div className="hint">
+        {plural(casos.length, 'caso proposto', 'casos propostos')} · {automatizados} de {escolhidos.length} escolhidos já têm teste
+        automatizado · {modelo}
+      </div>
+      {casos.map((c, i) => (
+        <div key={i} className="caso-teste" aria-label={`Caso ${i + 1}`}>
+          <div className="btn-row">
+            <label className="check" style={{ fontFamily: 'inherit' }}>
+              <input type="checkbox" checked={c.incluir} onChange={(e) => alterar(i, 'incluir', e.target.checked)} /> CT{String(i + 1).padStart(2, '0')}
+            </label>
+            <Badge tom={TOM_TIPO[c.tipo]}>{c.tipo}</Badge>
+            {c.regra && <span className="badge info">{c.regra}</span>}
+            {c.automatizado ? (
+              <span className="hint" title={c.evidencia ?? ''}>✓ automatizado</span>
+            ) : (
+              <span className="hint">sem automação</span>
+            )}
+          </div>
+          <input className="input" aria-label={`Título do caso ${i + 1}`} value={c.titulo} onChange={(e) => alterar(i, 'titulo', e.target.value)} />
+          <textarea
+            className="input"
+            rows={Math.max(2, c.passos.length)}
+            aria-label={`Passos do caso ${i + 1}`}
+            value={c.passosTexto}
+            onChange={(e) => alterar(i, 'passosTexto', e.target.value)}
+          />
+          <input
+            className="input"
+            aria-label={`Resultado esperado do caso ${i + 1}`}
+            value={c.resultadoEsperado ?? ''}
+            onChange={(e) => alterar(i, 'resultadoEsperado', e.target.value)}
+          />
+        </div>
+      ))}
+      <div className="btn-row">
+        <button
+          className="btn primary"
+          type="button"
+          disabled={publicar.isPending || publicar.isSuccess || escolhidos.length === 0}
+          aria-busy={publicar.isPending}
+          onClick={() =>
+            publicar.mutate({
+              chave,
+              casos: escolhidos.map(({ passosTexto, incluir: _incluir, ...c }) => ({
+                ...c,
+                passos: passosTexto.split('\n').map((x) => x.trim()).filter(Boolean),
+              })),
+            })
+          }
+        >
+          {publicar.isPending ? (
+            <>
+              <span className="spinner" aria-hidden="true" /> Comentando em {chave}…
+            </>
+          ) : (
+            `Comentar ${plural(escolhidos.length, 'caso', 'casos')} em ${chave}`
+          )}
+        </button>
+        {publicar.isSuccess && (
+          <span className="hint" role="status">
+            ✓ {plural(publicar.data.casos, 'caso comentado', 'casos comentados')} em{' '}
             <a href={publicar.data.url} target="_blank" rel="noopener">
               {publicar.data.chave} ↗
             </a>
