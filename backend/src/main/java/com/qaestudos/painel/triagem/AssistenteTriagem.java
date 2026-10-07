@@ -2,6 +2,7 @@ package com.qaestudos.painel.triagem;
 
 import static com.qaestudos.painel.configuracao.ChaveConfig.*;
 
+import com.qaestudos.painel.common.RequisicaoInvalidaException;
 import com.qaestudos.painel.configuracao.ConfiguracaoService;
 import com.qaestudos.painel.triagem.ia.IaIndisponivelException;
 import com.qaestudos.painel.triagem.ia.ProvedorIa;
@@ -43,6 +44,32 @@ public class AssistenteTriagem {
     private ProvedorIa provedor(String id) {
         return provedores.stream().filter(p -> id.equals(p.id())).findFirst()
                 .orElseThrow(() -> new IaIndisponivelException("Provedor de IA '%s' não está disponível.".formatted(id)));
+    }
+
+    /**
+     * Chamada genérica à IA configurada, para outros fluxos (ex.: mapa de
+     * cobertura da demanda). Diferente da triagem, não há heurística: sem
+     * chave de IA, o recurso não existe — 400 com a orientação.
+     */
+    public ProvedorIa.Resposta gerarTexto(String prompt) {
+        String provedor = config.valor(IA_PROVEDOR).orElse("gemini");
+        boolean gemini = "gemini".equals(provedor);
+        String chave = config.valor(gemini ? IA_GEMINI_CHAVE : IA_ANTHROPIC_CHAVE).filter(c -> !c.isBlank())
+                .orElseThrow(() -> new RequisicaoInvalidaException("Configure uma chave de IA em Configurações para usar este recurso."));
+        String modelo = config.valor(gemini ? IA_GEMINI_MODELO : IA_ANTHROPIC_MODELO).orElseThrow();
+        return provedor(provedor).gerar(prompt, modelo, chave);
+    }
+
+    /** O primeiro objeto JSON do texto da IA (tolera markdown/explicação em volta). */
+    public JsonNode lerJson(String texto) {
+        int ini = texto == null ? -1 : texto.indexOf('{');
+        int fim = texto == null ? -1 : texto.lastIndexOf('}');
+        if (ini < 0 || fim <= ini) throw new IaIndisponivelException("A IA não devolveu um JSON. Tente novamente.");
+        try {
+            return json.readTree(texto.substring(ini, fim + 1));
+        } catch (RuntimeException e) {
+            throw new IaIndisponivelException("A IA devolveu um JSON inválido. Tente novamente.");
+        }
     }
 
     public RascunhoBug gerarRascunho(ContextoFalha falha) {

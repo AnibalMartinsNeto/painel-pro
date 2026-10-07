@@ -1,6 +1,6 @@
 // Chamadas da tela Jira (espelham JiraController.java).
-import { useQuery } from '@tanstack/react-query'
-import { apiGet } from '../../api/client'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { apiGet, apiPost } from '../../api/client'
 
 export interface IssueJira {
   chave: string
@@ -73,5 +73,26 @@ export function useBugsPublicados(projeto: string) {
     queryKey: ['jira-bugs', projeto],
     queryFn: () => apiGet<BugPublicado[]>(`/api/jira/bugs?projeto=${encodeURIComponent(projeto)}`),
     enabled: !!projeto,
+  })
+}
+
+export type SituacaoRequisito = 'COBERTO' | 'PARCIAL' | 'SEM_TESTE'
+
+export interface CoberturaDemanda {
+  chave: string
+  titulo: string
+  url: string
+  resumo: string | null
+  requisitos: { requisito: string; situacao: SituacaoRequisito; evidencias: string[]; cenarioSugerido: string | null }[]
+  specsAnalisados: string[]
+  criterioSpecs: string
+  modelo: string
+}
+
+/** Mapa de cobertura (IA). Mutation, e não query: só roda quando o QA clica (custa uma chamada à IA). */
+export function useCoberturaDemanda(projeto: string) {
+  return useMutation({
+    mutationFn: (chave: string) =>
+      apiPost<CoberturaDemanda>(`/api/demandas/${encodeURIComponent(chave)}/cobertura?projeto=${encodeURIComponent(projeto)}`),
   })
 }

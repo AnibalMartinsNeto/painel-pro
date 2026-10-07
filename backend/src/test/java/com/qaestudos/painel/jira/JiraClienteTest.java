@@ -177,6 +177,26 @@ class JiraClienteTest {
     }
 
     @Test
+    void buscarDetalheConverteADescricaoAdfEmTexto() {
+        jiraFalso.expect(requestTo("https://empresa.atlassian.net/rest/api/3/issue/QA-1?fields=summary,issuetype,status,description"))
+                .andRespond(withSuccess("""
+                        {"key":"QA-1","fields":{"summary":"Login do admin","issuetype":{"name":"Story"},"status":{"name":"Aberto"},
+                         "description":{"type":"doc","version":1,"content":[
+                           {"type":"paragraph","content":[{"type":"text","text":"O admin entra com e-mail e senha."}]},
+                           {"type":"bulletList","content":[
+                             {"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"senha errada mostra erro"}]}]},
+                             {"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"admin vai para /admin/home"}]}]}
+                           ]}]}}}
+                        """, MediaType.APPLICATION_JSON));
+
+        var d = cliente.buscarDetalhe("QA-1");
+
+        assertThat(d.resumo()).isEqualTo("Login do admin");
+        assertThat(d.tipo()).isEqualTo("Story");
+        assertThat(d.descricao()).isEqualTo("O admin entra com e-mail e senha.\n- senha errada mostra erro\n- admin vai para /admin/home");
+    }
+
+    @Test
     void semTokenAvisaOQueFaltaSemChamarOJira() {
         when(config.valor(ChaveConfig.JIRA_TOKEN)).thenReturn(Optional.empty());
 

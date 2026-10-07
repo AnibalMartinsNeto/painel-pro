@@ -23,7 +23,10 @@ public final class ResumoSpec {
             "\\b(?:describe|context|it|test|before|beforeEach|after|afterEach)(?:\\.\\w+)?\\s*\\("   // estrutura e hooks
             + "|\\bexpect\\s*\\(|\\.should\\s*\\(|\\bassert\\b"                                       // asserções
             + "|\\b\\w+Page\\.\\w+\\s*\\("                                                            // Page Objects
-            + "|\\bcy\\.(?:request|api|intercept|visit|apiLogin|api\\w+)\\b|\\bpage\\.(?:goto|route)\\b|\\bapi\\.\\w+\\s*\\(");
+            + "|\\bcy\\.(?:request|api|intercept|visit|apiLogin|api\\w+)\\b|\\bpage\\.(?:goto|route)\\b|\\bapi\\.\\w+\\s*\\("
+            // k6: grupos, checks (cada "nome": (r) => ... é uma verificação), chamadas HTTP e limites
+            + "|\\b(?:group|check)\\s*\\(|[\"'][^\"']+[\"']\\s*:\\s*\\(\\w+\\)\\s*=>|\\bhttp\\.(?:get|post|put|patch|del|request)\\s*\\("
+            + "|\\bthresholds\\b|p\\(\\d+\\)\\s*<|rate\\s*[<>=]|\\bnew\\s+(?:Trend|Rate|Counter)\\s*\\(|\\bwaitFor\\s*\\(");
 
     private ResumoSpec() {}
 
@@ -49,6 +52,24 @@ public final class ResumoSpec {
             if (RELEVANTE.matcher(linhas[i]).find()) linha(sb, i, linhas[i]);
         }
         return sb.toString().stripTrailing();
+    }
+
+    /** Até quanto o resumo de UM spec ocupa (o mapa de cobertura manda vários). */
+    static final int LIMITE_ESTRUTURA = 2_500;
+
+    /**
+     * Só a estrutura do spec (describe/it, hooks, asserções, Page Objects, API),
+     * numerada: diz O QUE o spec verifica sem mandar o arquivo inteiro.
+     */
+    public static String estrutura(String codigoSpec) {
+        if (codigoSpec == null || codigoSpec.isBlank()) return "(spec vazio)";
+        String[] linhas = codigoSpec.split("\\R", -1);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < linhas.length && sb.length() < LIMITE_ESTRUTURA; i++) {
+            if (RELEVANTE.matcher(linhas[i]).find()) linha(sb, i, linhas[i].strip());
+        }
+        String s = sb.toString().stripTrailing();
+        return sb.length() >= LIMITE_ESTRUTURA ? s + "\n   [... resumo cortado ...]" : s;
     }
 
     private static int indiceDoBloco(String[] linhas, String bloco) {

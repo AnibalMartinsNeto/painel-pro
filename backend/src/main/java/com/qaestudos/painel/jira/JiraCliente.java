@@ -195,6 +195,56 @@ public class JiraCliente {
         }
     }
 
+    /** A demanda com a DESCRIÇÃO em texto puro (o Jira manda em ADF): base do mapa de cobertura. */
+    public record DetalheIssue(String chave, String resumo, String tipo, String status, String descricao, String url) {}
+
+    /** GET /issue/{chave} com a descrição: o que a demanda pede, para comparar com os testes. */
+    @SuppressWarnings("unchecked")
+    public DetalheIssue buscarDetalhe(String chave) {
+        try {
+            Map<String, Object> issue = cliente().get()
+                    .uri("/rest/api/3/issue/{chave}?fields=summary,issuetype,status,description", chave)
+                    .retrieve().body(Map.class);
+            Map<String, Object> f = (Map<String, Object>) issue.getOrDefault("fields", Map.of());
+            return new DetalheIssue((String) issue.get("key"), (String) f.get("summary"), nome(f.get("issuetype")),
+                    nome(f.get("status")), textoAdf(f.get("description")).strip(), link((String) issue.get("key")));
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new RequisicaoInvalidaException("Issue '%s' não existe no Jira (ou a conta não tem acesso).".formatted(chave));
+        } catch (HttpClientErrorException.Unauthorized e) {
+            throw new RequisicaoInvalidaException("O Jira recusou as credenciais (401). Confira o e-mail e o API token.");
+        } catch (ResourceAccessException e) {
+            throw new RequisicaoInvalidaException("Não foi possível conectar ao Jira em %s.".formatted(texto(JIRA_URL)));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String nome(Object campo) {
+        return campo instanceof Map<?, ?> m ? (String) ((Map<String, Object>) m).get("name") : null;
+    }
+
+    /**
+     * ADF (Atlassian Document Format) → texto: junta os nós "text" e quebra a
+     * linha no fim de parágrafos, títulos e itens de lista. Itens viram "- ".
+     */
+    @SuppressWarnings("unchecked")
+    static String textoAdf(Object no) {
+        StringBuilder sb = new StringBuilder();
+        if (no instanceof Map<?, ?> m) {
+            Map<String, Object> mapa = (Map<String, Object>) m;
+            String tipo = String.valueOf(mapa.get("type"));
+            if ("text".equals(tipo)) return String.valueOf(mapa.getOrDefault("text", ""));
+            if ("hardBreak".equals(tipo)) return "\n";
+            if ("listItem".equals(tipo)) sb.append("- ");
+            if (mapa.get("content") instanceof List<?> filhos) for (Object filho : filhos) sb.append(textoAdf(filho));
+            if (List.of("paragraph", "heading", "listItem", "codeBlock", "blockquote").contains(tipo) && !sb.toString().endsWith("\n")) {
+                sb.append('\n');
+            }
+        } else if (no instanceof String s) {
+            sb.append(s); // Jira Server/antigo: descrição já em texto
+        }
+        return sb.toString();
+    }
+
     /** POST /issue/{chave}/comment: comentário (ADF) num bug que já existe. */
     public void comentar(String chave, Map<String, Object> corpo) {
         try {

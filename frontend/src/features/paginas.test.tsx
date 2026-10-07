@@ -372,6 +372,41 @@ describe('Jira', () => {
     expect(publicacoes).toHaveLength(1)
   })
 
+  it('mapa de cobertura mostra cada requisito com a situação, a evidência e o cenário sugerido', async () => {
+    const fetchDoTeste = apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': comJira,
+      '/api/jira/bugs?projeto=cypress': [],
+      '/api/jira/demandas/DEV-1?projeto=cypress': {
+        chave: 'DEV-1', erro: null, specs: ['cypress/e2e/login.cy.js'], origem: null,
+        issue: { chave: 'DEV-1', resumo: 'Login do administrador', tipo: 'Story', status: 'Aberto', url: 'https://x/browse/DEV-1' },
+      },
+      '/api/demandas/DEV-1/cobertura?projeto=cypress': {
+        chave: 'DEV-1', titulo: 'Login do administrador', url: 'https://x/browse/DEV-1', resumo: 'Falta o bloqueio.',
+        requisitos: [
+          { requisito: 'admin loga', situacao: 'COBERTO', evidencias: ['login.cy.js › deve logar'], cenarioSugerido: null },
+          { requisito: 'conta bloqueada não entra', situacao: 'SEM_TESTE', evidencias: [], cenarioSugerido: 'Logar com conta bloqueada' },
+        ],
+        specsAnalisados: ['cypress/e2e/login.cy.js'], criterioSpecs: 'specs que citam DEV-1', modelo: 'gemini-teste',
+      },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/jira' })
+
+    await user.type(await screen.findByLabelText('Chave da issue'), 'DEV-1')
+    await user.click(screen.getByRole('button', { name: 'Buscar' }))
+    await user.click(await screen.findByRole('button', { name: /Mapa de cobertura de DEV-1/ }))
+
+    const mapa = screen.getByLabelText('Mapa de cobertura')
+    expect(await within(mapa).findByText('1 de 2 requisitos cobertos.')).toBeInTheDocument()
+    expect(within(mapa).getByText('Sem teste')).toBeInTheDocument()
+    expect(within(mapa).getByText('Sugestão: Logar com conta bloqueada')).toBeInTheDocument()
+    expect(fetchDoTeste).toHaveBeenCalledWith('/api/demandas/DEV-1/cobertura?projeto=cypress', expect.objectContaining({ method: 'POST' }))
+  })
+
   it('busca a demanda e lista os specs que a citam', async () => {
     apiFalsa({
       '/actuator/health': { status: 'UP' },

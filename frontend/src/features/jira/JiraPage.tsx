@@ -6,7 +6,7 @@ import { fmtData, plural } from '../../lib/formato'
 import { useConfiguracoes } from '../configuracoes/api'
 import { useEmAndamento, useIniciarExecucao } from '../execucoes/api'
 import { useProjetoAtual } from '../projetos/ProjetoAtual'
-import { useBugsPublicados, useDemanda, useHistoricoJira } from './api'
+import { useBugsPublicados, useCoberturaDemanda, useDemanda, useHistoricoJira, type SituacaoRequisito } from './api'
 
 /** Tela /jira: testes por demanda e bugs publicados pelo painel. */
 export function JiraPage() {
@@ -92,6 +92,7 @@ export function JiraPage() {
             ) : (
               <p className="hint" role="alert">Não foi possível consultar {d.chave} no Jira: {d.erro}</p>
             )}
+            {d.issue && !d.origem && <MapaCobertura projeto={projeto} chave={d.chave} />}
             {d.origem && (
               <div className="note" style={{ margin: '10px 0' }} aria-label="Origem do bug">
                 <b>{d.chave} foi publicado pelo painel</b> a partir da falha do teste
@@ -240,5 +241,82 @@ function HistoricoJira({ configurado, projetoJira }: { configurado: boolean; pro
         ))}
       </div>
     </section>
+  )
+}
+
+const SITUACAO: Record<SituacaoRequisito, { rotulo: string; tom: 'ok' | 'warn' | 'bad' }> = {
+  COBERTO: { rotulo: 'Coberto', tom: 'ok' },
+  PARCIAL: { rotulo: 'Parcial', tom: 'warn' },
+  SEM_TESTE: { rotulo: 'Sem teste', tom: 'bad' },
+}
+
+/**
+ * Mapa de cobertura da demanda (IA): o que ela pede × o que já tem teste
+ * (com evidência) × o que falta (com cenário sugerido). Só leitura.
+ */
+function MapaCobertura({ projeto, chave }: { projeto: string; chave: string }) {
+  const mapa = useCoberturaDemanda(projeto)
+  const c = mapa.data
+  const cobertos = c?.requisitos.filter((r) => r.situacao === 'COBERTO').length ?? 0
+  return (
+    <div className="stack" style={{ marginTop: 12 }} aria-label="Mapa de cobertura">
+      <div className="btn-row">
+        <button className="btn green sm" type="button" onClick={() => mapa.mutate(chave)} disabled={mapa.isPending}>
+          {mapa.isPending ? (
+            <>
+              <span className="spinner" aria-hidden="true" /> Analisando a cobertura de {chave}…
+            </>
+          ) : c ? (
+            'Gerar o mapa de novo'
+          ) : (
+            `✨ Mapa de cobertura de ${chave} (IA)`
+          )}
+        </button>
+        <span className="hint">O que a demanda pede × o que já tem teste × o que falta. Só leitura: nada é criado.</span>
+      </div>
+      {mapa.error && <ErroApi erro={mapa.error} />}
+      {c && (
+        <>
+          <div className="note">
+            <b>
+              {cobertos} de {c.requisitos.length} requisitos cobertos.
+            </b>{' '}
+            {c.resumo}
+            <div className="hint" style={{ marginTop: 4 }}>
+              Base: {c.criterioSpecs} · {plural(c.specsAnalisados.length, 'spec analisado', 'specs analisados')} · {c.modelo}
+            </div>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Requisito</th>
+                  <th>Situação</th>
+                  <th>Evidência / cenário sugerido</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.requisitos.map((r, i) => (
+                  <tr key={i}>
+                    <td>{r.requisito}</td>
+                    <td>
+                      <Badge tom={SITUACAO[r.situacao].tom}>{SITUACAO[r.situacao].rotulo}</Badge>
+                    </td>
+                    <td>
+                      {r.evidencias.map((e) => (
+                        <div key={e}>
+                          <code>{e}</code>
+                        </div>
+                      ))}
+                      {r.cenarioSugerido && <div className="hint">Sugestão: {r.cenarioSugerido}</div>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
