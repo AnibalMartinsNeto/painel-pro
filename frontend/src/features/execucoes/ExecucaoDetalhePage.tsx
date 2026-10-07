@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router'
 import { Badge } from '../../components/Badge'
+import { Evidencias } from '../../components/Evidencias'
 import { Carregando, ErroApi } from '../../components/Estado'
 import { fmtData, fmtDuracao, plural } from '../../lib/formato'
 import { useExecucao, type ResultadoTeste } from './api'
@@ -105,6 +106,7 @@ function LinhaTeste({ t }: { t: ResultadoTeste }) {
             </Link>
           </div>
           {t.mensagemErro && <div className="err">{t.mensagemErro}</div>}
+          <Evidencias evidencias={t.evidencias} />
         </>
       )}
     </div>

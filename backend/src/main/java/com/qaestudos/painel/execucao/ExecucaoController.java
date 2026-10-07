@@ -92,6 +92,6 @@ public class ExecucaoController {
     /** GET /api/execucoes/42 → execução com todos os resultados de teste. */
     @GetMapping("/{id}")
     public ExecucaoDetalheResponse detalhar(@PathVariable Long id) {
-        return ExecucaoDetalheResponse.de(service.buscar(id));
+        return ExecucaoDetalheResponse.de(service.buscar(id), service.evidencias(id));
     }
 }

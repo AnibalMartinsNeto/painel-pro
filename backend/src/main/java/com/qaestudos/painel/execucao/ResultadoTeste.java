@@ -10,6 +10,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /** ENTIDADE JPA da tabela {@code resultado_teste}: um teste dentro de uma execução. */
 @Entity
@@ -37,7 +41,21 @@ public class ResultadoTeste {
     private String mensagemErro;
     private String tipoErro;
 
+    /**
+     * Arquivos que a ferramenta gerou para este teste (screenshot, trace),
+     * anotados na LEITURA do relatório. Não vão para o banco: na gravação,
+     * o {@link ArmazemEvidencias} copia cada um e cria a {@link Evidencia}.
+     */
+    @Transient
+    private final List<Path> anexos = new ArrayList<>();
+
     protected ResultadoTeste() {}
+
+    public void anexar(Path arquivo) {
+        if (arquivo != null && !anexos.contains(arquivo)) anexos.add(arquivo);
+    }
+
+    public List<Path> getAnexos() { return List.copyOf(anexos); }
 
     public ResultadoTeste(String spec, String titulo, StatusTeste status, Long duracaoMs, String mensagemErro, String tipoErro) {
         this.spec = spec;

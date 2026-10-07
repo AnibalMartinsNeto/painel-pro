@@ -95,7 +95,15 @@ public class PlaywrightExecutor implements ExecutorFerramenta {
                             .orElse("Falha sem mensagem.");
                 }
                 long duracao = tentativas.stream().mapToLong(x -> x.path("duration").asLong(0)).sum();
-                saida.add(new ResultadoTeste(spec, String.join(" › ", titulo), status, duracao, erro, ClassificadorErro.classificar(erro)));
+                ResultadoTeste r = new ResultadoTeste(spec, String.join(" › ", titulo), status, duracao, erro, ClassificadorErro.classificar(erro));
+                // Evidências da última tentativa (screenshot "only-on-failure", trace "retain-on-failure").
+                if (status == StatusTeste.FALHOU && ultima != null) {
+                    for (JsonNode anexo : Json.itens(ultima.path("attachments"))) {
+                        String caminho = Json.texto(anexo.path("path"));
+                        if (caminho != null) r.anexar(Path.of(caminho));
+                    }
+                }
+                saida.add(r);
             }
         }
         for (JsonNode filha : Json.itens(suite.path("suites"))) {

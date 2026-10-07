@@ -76,16 +76,43 @@ public class CypressExecutor implements ExecutorFerramenta {
         List<ResultadoTeste> resultados = new ArrayList<>();
         for (JsonNode run : Json.itens(r.path("runs"))) {
             String spec = Json.texto(run.path("spec").path("relative")).replace('\\', '/');
+            List<String> screenshots = Json.itens(run.path("screenshots")).stream()
+                    .map(s -> Json.texto(s.path("path"))).filter(p -> p != null).toList();
             for (JsonNode t : Json.itens(run.path("tests"))) {
                 List<String> titulo = Json.itens(t.path("title")).stream().map(Json::texto).toList();
                 String erro = Json.semCores(Json.texto(t.path("displayError")));
-                resultados.add(new ResultadoTeste(
+                ResultadoTeste resultado = new ResultadoTeste(
                         spec, String.join(" › ", titulo), status(Json.texto(t.path("state"))),
-                        Json.numero(t.path("duration")), erro, ClassificadorErro.classificar(erro)));
+                        Json.numero(t.path("duration")), erro, ClassificadorErro.classificar(erro));
+                if (resultado.getStatus() == StatusTeste.FALHOU) {
+                    screenshotsDoTeste(screenshots, titulo).forEach(p -> resultado.anexar(Path.of(p)));
+                }
+                resultados.add(resultado);
             }
         }
         String versao = Json.texto(r.path("cypressVersion"));
         return new Leitura(resultados, versao == null ? null : "Cypress " + versao, null);
+    }
+
+    /**
+     * O Cypress não liga o screenshot ao teste no resultado: o vínculo é o
+     * NOME do arquivo, "describe -- teste (failed).png" (com acento e
+     * pontuação trocados, às vezes cortado). Compara sem acento, espaço nem
+     * pontuação: todos os títulos; se o nome foi cortado, o título do teste.
+     */
+    static List<String> screenshotsDoTeste(List<String> screenshots, List<String> titulo) {
+        if (titulo.isEmpty()) return List.of();
+        String completo = normalizar(String.join("", titulo));
+        String teste = normalizar(titulo.getLast());
+        return screenshots.stream().filter(p -> {
+            String nome = normalizar(Path.of(p).getFileName().toString());
+            return nome.contains(completo) || (teste.length() >= 8 && nome.contains(teste));
+        }).toList();
+    }
+
+    private static String normalizar(String s) {
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "")
+                .toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 
     private static StatusTeste status(String state) {

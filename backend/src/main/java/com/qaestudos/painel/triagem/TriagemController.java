@@ -2,6 +2,7 @@ package com.qaestudos.painel.triagem;
 
 import com.qaestudos.painel.jira.PublicacaoJiraService;
 import com.qaestudos.painel.triagem.TriagemRepository.FalhaEmAberto;
+import com.qaestudos.painel.execucao.dto.ExecucaoDtos;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -89,13 +90,14 @@ public class TriagemController {
     public record FalhaResponse(
             Long resultadoId, Long execucaoId, String spec, String titulo, String chave, String mensagemErro,
             String tipoErro, Instant ocorridaEm, String navegador, TriagemResponse triagem,
-            boolean recorrente, List<VinculoResponse> vinculos) {
+            boolean recorrente, List<VinculoResponse> vinculos, List<ExecucaoDtos.EvidenciaResponse> evidencias) {
 
         static FalhaResponse de(TriagemService.ItemFila i) {
             FalhaEmAberto f = i.falha();
             return new FalhaResponse(f.getResultadoId(), f.getExecucaoId(), f.getSpec(), f.getTitulo(), f.getChave(),
                     f.getMensagemErro(), f.getTipoErro(), f.getOcorridaEm(), f.getNavegador(), TriagemResponse.de(i.triagem()),
-                    i.recorrente(), i.vinculos().stream().map(VinculoResponse::de).toList());
+                    i.recorrente(), i.vinculos().stream().map(VinculoResponse::de).toList(),
+                    i.evidencias().stream().map(ExecucaoDtos.EvidenciaResponse::de).toList());
         }
     }
 

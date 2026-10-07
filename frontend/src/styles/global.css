@@ -316,3 +316,8 @@ ul.spec-list { list-style: none; padding: 0; margin: 12px 0 0; }
 .historico-jira { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .historico-jira li { display: flex; gap: 10px; align-items: baseline; }
 .historico-jira a { font-weight: 700; text-decoration: none; }
+
+/* Evidências de teste (screenshot em miniatura, trace para baixar) */
+.evidencias { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; margin-top: 10px; }
+.evidencias img { display: block; max-width: 320px; max-height: 200px; border-radius: 8px; border: 1px solid var(--inner-border); background: #fff; }
+.evidencias a:hover img { border-color: var(--blue); }

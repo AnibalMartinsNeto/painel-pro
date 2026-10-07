@@ -1,6 +1,7 @@
 // Tipos e chamadas da API de triagem (espelham TriagemController.java).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiGet, apiPost, apiPut } from '../../api/client'
+import type { Evidencia } from '../../components/Evidencias'
 
 export type Classificacao = 'BUG_APLICACAO' | 'FALHA_AUTOMACAO' | 'AMBIENTE' | 'INSTAVEL' | 'BUG_CONHECIDO'
 export type Severidade = 'CRITICA' | 'ALTA' | 'MEDIA' | 'BAIXA'
@@ -55,6 +56,8 @@ export interface FalhaTriagem {
   recorrente: boolean
   /** O que o painel já fez no Jira por este teste (mais recente primeiro). */
   vinculos: VinculoJira[]
+  /** Screenshot/trace desta ocorrência. */
+  evidencias?: Evidencia[]
 }
 
 export interface VinculoJira {

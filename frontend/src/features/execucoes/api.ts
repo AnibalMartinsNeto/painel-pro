@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from '../../api/client'
+import type { Evidencia } from '../../components/Evidencias'
 
 export type StatusExecucao = 'EM_ANDAMENTO' | 'PASSOU' | 'FALHOU' | 'ERRO' | 'CANCELADA'
 export type StatusTeste = 'PASSOU' | 'FALHOU' | 'PENDENTE' | 'PULADO'
@@ -32,6 +33,8 @@ export interface ResultadoTeste {
   duracaoMs: number | null
   mensagemErro: string | null
   tipoErro: string | null
+  /** Screenshot/trace copiados da ferramenta (só nos testes que falharam). */
+  evidencias?: Evidencia[]
 }
 
 export interface ExecucaoDetalhe {

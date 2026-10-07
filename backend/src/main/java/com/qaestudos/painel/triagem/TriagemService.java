@@ -1,6 +1,8 @@
 package com.qaestudos.painel.triagem;
 
 import com.qaestudos.painel.common.RecursoNaoEncontradoException;
+import com.qaestudos.painel.execucao.Evidencia;
+import com.qaestudos.painel.execucao.EvidenciaRepository;
 import com.qaestudos.painel.execucao.Execucao;
 import com.qaestudos.painel.execucao.ResultadoTeste;
 import com.qaestudos.painel.execucao.ResultadoTesteRepository;
@@ -32,16 +34,19 @@ public class TriagemService {
 
     private final TriagemRepository triagens;
     private final JiraVinculoRepository vinculos;
+    private final EvidenciaRepository evidencias;
     private final ResultadoTesteRepository resultados;
     private final ProjetoService projetos;
     private final AssistenteTriagem assistente;
     private final TransactionTemplate tx;
     private final Clock clock;
 
-    public TriagemService(TriagemRepository triagens, JiraVinculoRepository vinculos, ResultadoTesteRepository resultados,
-                          ProjetoService projetos, AssistenteTriagem assistente, TransactionTemplate tx, Clock clock) {
+    public TriagemService(TriagemRepository triagens, JiraVinculoRepository vinculos, EvidenciaRepository evidencias,
+                          ResultadoTesteRepository resultados, ProjetoService projetos, AssistenteTriagem assistente,
+                          TransactionTemplate tx, Clock clock) {
         this.triagens = triagens;
         this.vinculos = vinculos;
+        this.evidencias = evidencias;
         this.resultados = resultados;
         this.projetos = projetos;
         this.assistente = assistente;
@@ -55,7 +60,8 @@ public class TriagemService {
      * @param recorrente o teste já tem bug publicado e voltou a falhar depois disso
      * @param vinculos   o que o painel já fez no Jira por este teste (mais recente primeiro)
      */
-    public record ItemFila(FalhaEmAberto falha, Triagem triagem, boolean recorrente, List<JiraVinculo> vinculos) {}
+    public record ItemFila(FalhaEmAberto falha, Triagem triagem, boolean recorrente, List<JiraVinculo> vinculos,
+                           List<Evidencia> evidencias) {}
 
     /**
      * Fila de triagem: falhas da execução mais recente, menos as ocorrências
@@ -75,12 +81,16 @@ public class TriagemService {
                     .stream().collect(Collectors.toMap(Triagem::getChaveTeste, Function.identity()));
             Map<String, List<JiraVinculo>> historico = vinculos.findByProjetoIdAndChaveTesteInOrderByCriadoEmDesc(projetoId, chaves)
                     .stream().collect(Collectors.groupingBy(JiraVinculo::getChaveTeste));
+            Map<Long, List<Evidencia>> anexos = evidencias
+                    .findByResultadoIdInOrderByIdAsc(falhas.stream().map(FalhaEmAberto::getResultadoId).toList())
+                    .stream().collect(Collectors.groupingBy(ev -> ev.getResultado().getId()));
             return falhas.stream()
                     .filter(f -> { Triagem t = porChave.get(f.getChave()); return t == null || !t.ignorada(f.getResultadoId()); })
                     .map(f -> {
                         Triagem t = porChave.get(f.getChave());
                         boolean recorrente = t != null && t.recorrente(f.getResultadoId(), f.getOcorridaEm());
-                        return new ItemFila(f, t, recorrente, historico.getOrDefault(f.getChave(), List.of()));
+                        return new ItemFila(f, t, recorrente, historico.getOrDefault(f.getChave(), List.of()),
+                                anexos.getOrDefault(f.getResultadoId(), List.of()));
                     })
                     .toList();
         });

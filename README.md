@@ -21,7 +21,7 @@ Versão "profissional" do QA Panel, construída por etapas como projeto de estud
    - ✅ Configurações e segredos (AES-256-GCM, chave-mestra fora do banco), com Jira no lugar do Azure DevOps
    - ✅ Triagem com IA (Gemini ou Claude; fila por consulta nativa; rascunho editável; heurística sem chave)
    - ✅ Jira: publicar o bug da triagem ligado à demanda, e buscar a demanda para rodar os specs que a citam
-   - 🟨 Relatórios (✅ totais do histórico, aprovação por execução, testes que mais falham/instáveis, CSV e JSON; ✅ histórico do projeto no Jira) · ⬜ screenshots, falha nova × recorrente
+   - ✅ Relatórios, histórico do Jira, screenshots/trace como evidência, falha nova × recorrente
    - ✅ CI no GitHub Actions: testes do backend (com PostgreSQL via Testcontainers), lint, testes e build do front, só do lado que mudou em cada push ou PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); os testes do serverest-qa têm o CI deles
 
 ## Como rodar do zero
@@ -134,6 +134,7 @@ cd backend
 | `GET /api/execucoes?projeto=cypress` | Últimas 50 execuções do projeto |
 | `GET /api/execucoes/resumo?projeto=cypress` | Números da Visão geral (mês, aprovação, falhas por módulo) |
 | `GET /api/execucoes/{id}` | Execução com todos os resultados de teste |
+| `GET /api/evidencias/{id}` | Arquivo de uma evidência: screenshot (mostrado na tela) ou trace/contexto (download) |
 | `GET /api/execucoes/duracoes?projeto=` | Base da previsão de tempo: média de cada spec e tempo fixo de uma execução (só execuções reais) |
 | `POST /api/execucoes` | Dispara uma execução → 202; 400 se inválida; 409 se já houver uma rodando |
 | `GET /api/execucoes/em-andamento` | Execução rodando agora, ou 204 |
@@ -144,6 +145,10 @@ cd backend
 | `GET /api/relatorios/execucoes.csv?projeto=cypress` | Todas as execuções do projeto em CSV (download) |
 | `POST /api/importacoes/painel-node` | Importa o histórico do painel Node de `C:\QA_Estudos\Painel\data\runs` (idempotente; propriedade `painel.importacao.pasta-painel-node`) |
 | `GET /actuator/health` | Saúde da aplicação |
+
+### Evidências (screenshot e trace)
+
+Na falha, o Playwright anexa screenshot, `trace.zip` e o contexto do erro; o Cypress grava o screenshot com o título do teste no nome. Como a próxima execução sobrescreve esses arquivos dentro do projeto de testes, o painel **copia** cada um para a pasta de evidências (`~/.qapanel/evidencias/<execução>/`, configurável em `painel.evidencias.pasta`) e registra na tabela `evidencia` (V8). O screenshot aparece no detalhe da execução e no card da falha na triagem; o trace abre em trace.playwright.dev.
 
 ### Execução de teste (dev) e previsão de tempo
 

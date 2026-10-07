@@ -26,10 +26,14 @@ public class ExecucaoGravacao {
     private static final Logger log = LoggerFactory.getLogger(ExecucaoGravacao.class);
 
     private final ExecucaoRepository repository;
+    private final EvidenciaRepository evidencias;
+    private final ArmazemEvidencias armazem;
     private final Clock clock;
 
-    public ExecucaoGravacao(ExecucaoRepository repository, Clock clock) {
+    public ExecucaoGravacao(ExecucaoRepository repository, EvidenciaRepository evidencias, ArmazemEvidencias armazem, Clock clock) {
         this.repository = repository;
+        this.evidencias = evidencias;
+        this.armazem = armazem;
         this.clock = clock;
     }
 
@@ -46,6 +50,16 @@ public class ExecucaoGravacao {
         if (erro != null) e.registrarErro(erro);
         e.registrarLog(logTexto);
         e.finalizar(status, clock.instant(), Duration.between(e.getIniciadaEm(), clock.instant()).toMillis());
+        // Os resultados precisam de id para nomear as evidências: grava agora (flush) e depois copia os arquivos.
+        repository.flush();
+        for (ResultadoTeste r : e.getResultados()) {
+            for (var anexo : r.getAnexos()) {
+                armazem.guardar(e.getId(), r.getId(), anexo).ifPresent(ev -> {
+                    ev.vincular(r);
+                    evidencias.save(ev);
+                });
+            }
+        }
         return e; // dentro da transação: o Hibernate grava as mudanças sozinho no commit
     }
 

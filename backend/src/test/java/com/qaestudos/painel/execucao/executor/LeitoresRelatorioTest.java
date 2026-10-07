@@ -41,6 +41,25 @@ class LeitoresRelatorioTest {
         }
 
         @Test
+        void screenshotDaFalhaEhLigadoAoTestePeloNomeDoArquivo() {
+            var leitura = CypressExecutor.interpretar(json.readTree("""
+                    {"ok":true,"results":{"runs":[
+                      {"spec":{"relative":"cypress/e2e/admin-usuarios.cy.js"},
+                       "screenshots":[
+                         {"path":"C:/p/cypress/screenshots/admin-usuarios.cy.js/Administração de usuários @usuarios -- lista de usuários não deve exibir a senha (failed).png"},
+                         {"path":"C:/p/cypress/screenshots/admin-usuarios.cy.js/Administração de usuários @usuarios -- outro teste (failed).png"}],
+                       "tests":[
+                        {"title":["Administração de usuários @usuarios","lista de usuários não deve exibir a senha"],"state":"failed",
+                         "duration":10,"displayError":"AssertionError: x"},
+                        {"title":["Administração de usuários @usuarios","admin deve excluir"],"state":"passed","duration":10}]}]}}
+                    """));
+
+            assertThat(leitura.resultados().get(0).getAnexos()).extracting(p -> p.getFileName().toString())
+                    .containsExactly("Administração de usuários @usuarios -- lista de usuários não deve exibir a senha (failed).png");
+            assertThat(leitura.resultados().get(1).getAnexos()).isEmpty(); // passou: sem evidência
+        }
+
+        @Test
         void cypressQueNaoSubiuViraErroDaExecucao() {
             var leitura = CypressExecutor.interpretar(json.readTree("""
                     {"ok":true,"results":{"status":"failed","message":"Browser 'safari' not found"}}
@@ -76,6 +95,23 @@ class LeitoresRelatorioTest {
             assertThat(falha.getMensagemErro()).doesNotContain("\u001b"); // cores ANSI removidas
             assertThat(falha.getTipoErro()).isEqualTo("Elemento / Seletor");
             assertThat(leitura.resultados().get(1).getDuracaoMs()).isEqualTo(300L); // soma das tentativas
+        }
+
+        @Test
+        void anexosDaUltimaTentativaDaFalhaViramEvidencias() {
+            var leitura = PlaywrightExecutor.interpretar(json.readTree("""
+                    {"config":{"rootDir":"C:/proj/tests","version":"1.63.0"},"errors":[],
+                     "suites":[{"title":"x.spec.js","file":"x.spec.js","specs":[
+                       {"title":"quebrado","tests":[{"status":"unexpected","results":[
+                         {"duration":1,"errors":[{"message":"a"}],"attachments":[{"name":"screenshot","path":"C:/proj/test-results/a/test-failed-0.png"}]},
+                         {"duration":1,"errors":[{"message":"b"}],"attachments":[
+                           {"name":"screenshot","contentType":"image/png","path":"C:/proj/test-results/a-retry1/test-failed-1.png"},
+                           {"name":"trace","contentType":"application/zip","path":"C:/proj/test-results/a-retry1/trace.zip"},
+                           {"name":"error-context","contentType":"text/markdown","body":"sem arquivo"}]}]}]}]}]}
+                    """), Path.of("C:/proj"));
+
+            assertThat(leitura.resultados().getFirst().getAnexos()).extracting(p -> p.getFileName().toString())
+                    .containsExactly("test-failed-1.png", "trace.zip"); // só da última tentativa e só o que tem arquivo
         }
     }
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { Badge } from '../../components/Badge'
+import { Evidencias } from '../../components/Evidencias'
 import { Carregando, ErroApi } from '../../components/Estado'
 import { fmtData } from '../../lib/formato'
 import { useConfiguracoes } from '../configuracoes/api'
@@ -274,6 +275,7 @@ function Detalhe({ falha, projeto, iaAtiva, onPublicado, etapaEnvio, setEtapaEnv
           </dd>
         </dl>
         {falha.mensagemErro && <div className="err" style={{ marginLeft: 0 }}>{falha.mensagemErro}</div>}
+        <Evidencias evidencias={falha.evidencias} />
       </article>
 
       <article className="card ai-box">

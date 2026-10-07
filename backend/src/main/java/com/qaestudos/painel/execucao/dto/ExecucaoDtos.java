@@ -1,5 +1,6 @@
 package com.qaestudos.painel.execucao.dto;
 
+import com.qaestudos.painel.execucao.Evidencia;
 import com.qaestudos.painel.execucao.Execucao;
 import com.qaestudos.painel.execucao.ResultadoTeste;
 import com.qaestudos.painel.execucao.ResumoProjeto;
@@ -34,12 +35,24 @@ public final class ExecucaoDtos {
         }
     }
 
+    /** Uma evidência e a URL para abrir (imagem) ou baixar (trace). */
+    public record EvidenciaResponse(Long id, String nome, String tipo, String url) {
+        public static EvidenciaResponse de(Evidencia e) {
+            return new EvidenciaResponse(e.getId(), e.getNome(), e.getTipo(), "/api/evidencias/" + e.getId());
+        }
+    }
+
     public record ResultadoResponse(
-            Long id, String spec, String titulo, StatusTeste status, Long duracaoMs, String mensagemErro, String tipoErro) {
+            Long id, String spec, String titulo, StatusTeste status, Long duracaoMs, String mensagemErro, String tipoErro,
+            List<EvidenciaResponse> evidencias) {
 
         public static ResultadoResponse de(ResultadoTeste r) {
+            return de(r, List.of());
+        }
+
+        public static ResultadoResponse de(ResultadoTeste r, List<Evidencia> evidencias) {
             return new ResultadoResponse(r.getId(), r.getSpec(), r.getTitulo(), r.getStatus(), r.getDuracaoMs(),
-                    r.getMensagemErro(), r.getTipoErro());
+                    r.getMensagemErro(), r.getTipoErro(), evidencias.stream().map(EvidenciaResponse::de).toList());
         }
     }
 
@@ -47,8 +60,13 @@ public final class ExecucaoDtos {
             ExecucaoResumoResponse execucao, String versaoFerramenta, String erro, List<ResultadoResponse> resultados) {
 
         public static ExecucaoDetalheResponse de(Execucao e) {
+            return de(e, Map.of());
+        }
+
+        /** @param evidencias evidências por id do resultado */
+        public static ExecucaoDetalheResponse de(Execucao e, Map<Long, List<Evidencia>> evidencias) {
             return new ExecucaoDetalheResponse(ExecucaoResumoResponse.de(e), e.getVersaoFerramenta(), e.getErro(),
-                    e.getResultados().stream().map(ResultadoResponse::de).toList());
+                    e.getResultados().stream().map(r -> ResultadoResponse.de(r, evidencias.getOrDefault(r.getId(), List.of()))).toList());
         }
     }
 

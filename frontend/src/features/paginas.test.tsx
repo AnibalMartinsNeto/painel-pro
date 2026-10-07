@@ -53,7 +53,11 @@ beforeEach(() => {
       execucao, versaoFerramenta: 'Cypress 15.19.0', erro: null,
       resultados: [
         { id: 1, spec: 'cypress/e2e/user-behavior-matrix.cy.js', titulo: 'Matriz › standard_user › login', status: 'PASSOU', duracaoMs: 2000, mensagemErro: null, tipoErro: null },
-        { id: 2, spec: 'cypress/e2e/user-behavior-matrix.cy.js', titulo: 'Matriz › problem_user › imagens', status: 'FALHOU', duracaoMs: 66, mensagemErro: 'AssertionError: imagens duplicadas', tipoErro: 'Asserção' },
+        { id: 2, spec: 'cypress/e2e/user-behavior-matrix.cy.js', titulo: 'Matriz › problem_user › imagens', status: 'FALHOU', duracaoMs: 66, mensagemErro: 'AssertionError: imagens duplicadas', tipoErro: 'Asserção',
+          evidencias: [
+            { id: 3, nome: 'test-failed-1.png', tipo: 'image/png', url: '/api/evidencias/3' },
+            { id: 4, nome: 'trace.zip', tipo: 'application/zip', url: '/api/evidencias/4' },
+          ] },
       ],
     },
     '/api/execucoes/em-andamento': [204, null],
@@ -693,6 +697,8 @@ describe('Execuções', () => {
     expect(screen.getByText('AssertionError: imagens duplicadas')).toBeInTheDocument()
     expect(screen.getByText('Asserção')).toBeInTheDocument()
     expect(screen.getByText('1 falha')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Screenshot: test-failed-1.png' })).toHaveAttribute('src', '/api/evidencias/3')
+    expect(screen.getByRole('link', { name: /trace.zip/ })).toHaveAttribute('href', '/api/evidencias/4')
   })
 
   it('"Executar selecionados" envia o POST com os specs, o script e o navegador', async () => {

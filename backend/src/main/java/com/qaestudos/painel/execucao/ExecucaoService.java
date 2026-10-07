@@ -11,6 +11,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,11 +32,13 @@ public class ExecucaoService {
 
 
     private final ExecucaoRepository repository;
+    private final EvidenciaRepository evidencias;
     private final ProjetoService projetoService;
     private final Clock clock;
 
-    public ExecucaoService(ExecucaoRepository repository, ProjetoService projetoService, Clock clock) {
+    public ExecucaoService(ExecucaoRepository repository, EvidenciaRepository evidencias, ProjetoService projetoService, Clock clock) {
         this.repository = repository;
+        this.evidencias = evidencias;
         this.projetoService = projetoService;
         this.clock = clock;
     }
@@ -43,6 +46,12 @@ public class ExecucaoService {
     public List<Execucao> listar(String projetoId) {
         projetoService.buscar(projetoId); // 404 se o projeto não existir
         return repository.findTop50ByProjetoIdOrderByIniciadaEmDesc(projetoId);
+    }
+
+    /** Evidências de uma execução, agrupadas por resultado (tela de detalhe). */
+    public Map<Long, List<Evidencia>> evidencias(Long execucaoId) {
+        return evidencias.findByResultadoExecucaoIdOrderByIdAsc(execucaoId).stream()
+                .collect(Collectors.groupingBy(ev -> ev.getResultado().getId(), LinkedHashMap::new, Collectors.toList()));
     }
 
     public Execucao buscar(Long id) {
