@@ -407,6 +407,48 @@ describe('Jira', () => {
     expect(fetchDoTeste).toHaveBeenCalledWith('/api/demandas/DEV-1/cobertura?projeto=cypress', expect.objectContaining({ method: 'POST' }))
   })
 
+  it('relatório de validação mostra o veredito pelos resultados e comenta o texto revisado na demanda', async () => {
+    const fetchDoTeste = apiFalsa({
+      '/actuator/health': { status: 'UP' },
+      '/api/projetos': projetos,
+      '/api/projetos/cypress': cypress,
+      '/api/execucoes/em-andamento': [204, null],
+      '/api/configuracoes': comJira,
+      '/api/jira/bugs?projeto=cypress': [],
+      '/api/jira/demandas/DEV-1?projeto=cypress': {
+        chave: 'DEV-1', erro: null, specs: ['cypress/e2e/login.cy.js'], origem: null,
+        issue: { chave: 'DEV-1', resumo: 'Login do administrador', tipo: 'Story', status: 'Aberto', url: 'https://x/browse/DEV-1' },
+      },
+      '/api/demandas/DEV-1/validacao': {
+        chave: 'DEV-1', titulo: 'Login do administrador', url: 'https://x/browse/DEV-1', veredito: 'REPROVADA',
+        resumo: 'Uma falha no erro de senha.', pendencias: [], origem: 'IA', modelo: 'gemini-teste',
+        itens: [
+          { projeto: 'Cypress', spec: 'cypress/e2e/login.cy.js', teste: 'deve logar', status: 'PASSOU', execucaoId: 7, quando: null, oQueFoiValidado: 'chega na home' },
+          { projeto: 'Cypress', spec: 'cypress/e2e/login.cy.js', teste: 'senha inválida', status: 'FALHOU', execucaoId: 7, quando: null, oQueFoiValidado: null },
+        ],
+      },
+      '/api/demandas/DEV-1/validacao/publicar': { chave: 'DEV-1', url: 'https://x/browse/DEV-1' },
+    })
+    const user = userEvent.setup()
+    renderComApp(<App />, { rota: '/jira' })
+
+    await user.type(await screen.findByLabelText('Chave da issue'), 'DEV-1')
+    await user.click(screen.getByRole('button', { name: 'Buscar' }))
+    await user.click(await screen.findByRole('button', { name: /Relatório de validação de DEV-1/ }))
+
+    const relatorio = screen.getByLabelText('Relatório de validação')
+    expect(await within(relatorio).findByText('Reprovada')).toBeInTheDocument()
+    expect(within(relatorio).getByLabelText('Testes da demanda')).toHaveTextContent('chega na home')
+    await user.clear(within(relatorio).getByLabelText('Resumo para o time'))
+    await user.type(within(relatorio).getByLabelText('Resumo para o time'), 'Revisado pelo QA')
+    await user.click(within(relatorio).getByRole('button', { name: 'Comentar em DEV-1' }))
+
+    expect(await within(relatorio).findByText(/Relatório comentado em/)).toBeInTheDocument()
+    const post = (fetchDoTeste.mock.calls as unknown as [string, RequestInit | undefined][])
+      .find(([u]) => u === '/api/demandas/DEV-1/validacao/publicar')!
+    expect(JSON.parse(String(post[1]!.body))).toMatchObject({ veredito: 'REPROVADA', resumo: 'Revisado pelo QA' })
+  })
+
   it('busca a demanda e lista os specs que a citam', async () => {
     apiFalsa({
       '/actuator/health': { status: 'UP' },

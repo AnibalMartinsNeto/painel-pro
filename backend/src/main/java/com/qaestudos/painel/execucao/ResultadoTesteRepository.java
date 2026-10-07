@@ -1,5 +1,6 @@
 package com.qaestudos.painel.execucao;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,6 +27,44 @@ public interface ResultadoTesteRepository extends JpaRepository<ResultadoTeste, 
             group by r.chave, r.spec, r.titulo
             """)
     List<HistoricoTeste> historicoPorTeste(@Param("projetoId") String projetoId);
+
+    /**
+     * Os resultados da execução real MAIS RECENTE de cada spec informado: a
+     * base do relatório de validação da demanda. Pela execução (e não "o
+     * último de cada teste") para que testes removidos ou renomeados no spec
+     * não apareçam com resultados antigos.
+     */
+    @Query(nativeQuery = true, value = """
+            WITH ultima AS (
+                SELECT DISTINCT ON (r.spec) r.spec, e.id AS execucao_id
+                FROM resultado_teste r
+                JOIN execucao e ON e.id = r.execucao_id
+                WHERE e.projeto_id = :projetoId AND NOT e.dev AND e.status IN ('PASSOU', 'FALHOU') AND r.spec IN (:specs)
+                ORDER BY r.spec, e.iniciada_em DESC, e.id DESC
+            )
+            SELECT r.spec          AS "spec",
+                   r.titulo        AS "titulo",
+                   r.status        AS "status",
+                   r.mensagem_erro AS "mensagemErro",
+                   e.id            AS "execucaoId",
+                   e.iniciada_em   AS "quando",
+                   e.navegador     AS "navegador"
+            FROM ultima u
+            JOIN resultado_teste r ON r.execucao_id = u.execucao_id AND r.spec = u.spec
+            JOIN execucao e ON e.id = r.execucao_id
+            ORDER BY r.spec, r.id
+            """)
+    List<UltimoResultado> ultimosResultados(@Param("projetoId") String projetoId, @Param("specs") Collection<String> specs);
+
+    interface UltimoResultado {
+        String getSpec();
+        String getTitulo();
+        String getStatus();
+        String getMensagemErro();
+        Long getExecucaoId();
+        java.time.Instant getQuando();
+        String getNavegador();
+    }
 
     /** Falhas do projeto, da mais recente para a mais antiga, já com a execução carregada. */
     @Query("""

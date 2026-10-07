@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.qaestudos.painel.TestcontainersConfiguration;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -97,6 +98,29 @@ class ExecucaoRepositoryTest {
         assertThat(resultados.historicoPorTeste("cypress")).allMatch(h -> h.execucoes() == 1);
         // Ainda aparece no histórico (lista das últimas execuções), com o selo dev.
         assertThat(repository.findTop50ByProjetoIdOrderByIniciadaEmDesc("cypress")).extracting(Execucao::isDev).containsExactly(true, false);
+    }
+
+    @Test
+    void ultimosResultadosSaoOsDaExecucaoRealMaisRecenteDoSpec(@Autowired ResultadoTesteRepository resultados) {
+        repository.save(execucao("cypress", Instant.parse("2026-09-10T12:00:00Z"), StatusTeste.FALHOU, StatusTeste.FALHOU));
+        repository.save(execucao("cypress", Instant.parse("2026-09-11T12:00:00Z"), StatusTeste.PASSOU, StatusTeste.FALHOU));
+        Execucao dev = execucao("cypress", Instant.parse("2026-09-12T12:00:00Z"), StatusTeste.FALHOU, StatusTeste.PASSOU);
+        dev.marcarComoDev(); // mais nova, mas de teste: não conta
+        repository.save(dev);
+        em.flush();
+
+        var ultimos = resultados.ultimosResultados("cypress", List.of("cypress/e2e/login.cy.js"));
+
+        assertThat(ultimos).extracting(r -> r.getTitulo() + "=" + r.getStatus())
+                .containsExactlyInAnyOrder("Login › teste 0=PASSOU", "Login › teste 1=FALHOU");
+        assertThat(ultimos).allMatch(r -> r.getQuando().equals(Instant.parse("2026-09-11T12:00:00Z")));
+        assertThat(resultados.ultimosResultados("cypress", List.of("outro.cy.js"))).isEmpty();
+
+        // O spec mudou: a execução mais nova só tem 1 teste. O teste removido não volta com resultado antigo.
+        repository.save(execucao("cypress", Instant.parse("2026-09-13T12:00:00Z"), StatusTeste.PASSOU));
+        em.flush();
+        assertThat(resultados.ultimosResultados("cypress", List.of("cypress/e2e/login.cy.js")))
+                .extracting(r -> r.getTitulo()).containsExactly("Login › teste 0");
     }
 
     @Test

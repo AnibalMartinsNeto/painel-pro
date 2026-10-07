@@ -6,7 +6,16 @@ import { fmtData, plural } from '../../lib/formato'
 import { useConfiguracoes } from '../configuracoes/api'
 import { useEmAndamento, useIniciarExecucao } from '../execucoes/api'
 import { useProjetoAtual } from '../projetos/ProjetoAtual'
-import { useBugsPublicados, useCoberturaDemanda, useDemanda, useHistoricoJira, type SituacaoRequisito } from './api'
+import {
+  useBugsPublicados,
+  useCoberturaDemanda,
+  useDemanda,
+  useHistoricoJira,
+  usePublicarValidacao,
+  useRascunhoValidacao,
+  type RascunhoValidacao,
+  type SituacaoRequisito,
+} from './api'
 
 /** Tela /jira: testes por demanda e bugs publicados pelo painel. */
 export function JiraPage() {
@@ -93,6 +102,7 @@ export function JiraPage() {
               <p className="hint" role="alert">Não foi possível consultar {d.chave} no Jira: {d.erro}</p>
             )}
             {d.issue && !d.origem && <MapaCobertura projeto={projeto} chave={d.chave} />}
+            {d.issue && !d.origem && <RelatorioValidacao chave={d.chave} />}
             {d.origem && (
               <div className="note" style={{ margin: '10px 0' }} aria-label="Origem do bug">
                 <b>{d.chave} foi publicado pelo painel</b> a partir da falha do teste
@@ -317,6 +327,111 @@ function MapaCobertura({ projeto, chave }: { projeto: string; chave: string }) {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Relatório de validação da demanda: o último resultado real de cada teste que
+ * a cita, veredito pelos FATOS (tudo passou = aprovada) e o texto para revisar
+ * antes de comentar na demanda.
+ */
+function RelatorioValidacao({ chave }: { chave: string }) {
+  const rascunho = useRascunhoValidacao()
+  const r = rascunho.data
+  return (
+    <div className="stack" style={{ marginTop: 12 }} aria-label="Relatório de validação">
+      <div className="btn-row">
+        <button className="btn sm" type="button" onClick={() => rascunho.mutate(chave)} disabled={rascunho.isPending}>
+          {rascunho.isPending ? (
+            <>
+              <span className="spinner" aria-hidden="true" /> Montando o relatório de {chave}…
+            </>
+          ) : r ? (
+            'Gerar o relatório de novo'
+          ) : (
+            `📝 Relatório de validação de ${chave}`
+          )}
+        </button>
+        <span className="hint">Resultado mais recente de cada teste da demanda, para revisar e comentar no Jira.</span>
+      </div>
+      {rascunho.error && <ErroApi erro={rascunho.error} />}
+      {r && <EditorValidacao key={JSON.stringify(r)} rascunho={r} />}
+    </div>
+  )
+}
+
+function EditorValidacao({ rascunho: r }: { rascunho: RascunhoValidacao }) {
+  const publicar = usePublicarValidacao()
+  const [resumo, setResumo] = useState(r.resumo ?? '')
+  const [pendencias, setPendencias] = useState(r.pendencias.join('\n'))
+  const aprovada = r.veredito === 'APROVADA'
+  return (
+    <div className="stack">
+      <div className="btn-row">
+        <Badge tom={aprovada ? 'ok' : 'bad'}>{aprovada ? 'Aprovada' : 'Reprovada'}</Badge>
+        <span className="hint">
+          veredito pelos resultados · texto {r.origem === 'IA' ? `da IA (${r.modelo})` : 'montado dos resultados (sem IA)'}
+        </span>
+      </div>
+      <ul className="historico-jira" aria-label="Testes da demanda">
+        {r.itens.map((i) => (
+          <li key={i.projeto + i.spec + i.teste}>
+            <span>{i.status === 'PASSOU' ? '✅' : '❌'}</span>
+            <span>
+              <b>{i.projeto}</b> › {i.teste}
+              {i.oQueFoiValidado && <span className="hint"> — {i.oQueFoiValidado}</span>}
+            </span>
+            <Link className="hint" to={`/execucoes/${i.execucaoId}`}>#{i.execucaoId}</Link>
+          </li>
+        ))}
+      </ul>
+      <div className="field">
+        <label htmlFor="vResumo">Resumo para o time</label>
+        <textarea id="vResumo" className="input" rows={3} value={resumo} onChange={(e) => setResumo(e.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="vPendencias">
+          Pendências <span className="hint">(uma por linha)</span>
+        </label>
+        <textarea id="vPendencias" className="input" rows={3} value={pendencias} onChange={(e) => setPendencias(e.target.value)} />
+      </div>
+      <div className="btn-row">
+        <button
+          className="btn primary"
+          type="button"
+          disabled={publicar.isPending || publicar.isSuccess}
+          aria-busy={publicar.isPending}
+          onClick={() =>
+            publicar.mutate({
+              chave: r.chave,
+              relatorio: {
+                veredito: r.veredito,
+                resumo,
+                itens: r.itens,
+                pendencias: pendencias.split('\n').map((x) => x.trim()).filter(Boolean),
+              },
+            })
+          }
+        >
+          {publicar.isPending ? (
+            <>
+              <span className="spinner" aria-hidden="true" /> Comentando em {r.chave}…
+            </>
+          ) : (
+            `Comentar em ${r.chave}`
+          )}
+        </button>
+        {publicar.isSuccess && (
+          <span className="hint" role="status">
+            ✓ Relatório comentado em{' '}
+            <a href={publicar.data.url} target="_blank" rel="noopener">
+              {publicar.data.chave} ↗
+            </a>
+          </span>
+        )}
+      </div>
+      {publicar.error && <ErroApi erro={publicar.error} />}
     </div>
   )
 }

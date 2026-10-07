@@ -2,6 +2,7 @@ package com.qaestudos.painel.demanda;
 
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,9 +13,28 @@ import org.springframework.web.bind.annotation.RestController;
 public class DemandaController {
 
     private final CoberturaDemandaService cobertura;
+    private final ValidacaoDemandaService validacao;
 
-    public DemandaController(CoberturaDemandaService cobertura) {
+    public DemandaController(CoberturaDemandaService cobertura, ValidacaoDemandaService validacao) {
         this.cobertura = cobertura;
+        this.validacao = validacao;
+    }
+
+    /**
+     * POST /api/demandas/DEV-1/validacao → rascunho do relatório de validação:
+     * último resultado real de cada teste da demanda, veredito pelos fatos e o
+     * texto (IA, ou direto dos resultados sem IA). Nada é publicado ainda.
+     */
+    @PostMapping("/{chave}/validacao")
+    public ValidacaoDemandaService.Rascunho validacao(@PathVariable String chave) {
+        return validacao.rascunho(chave);
+    }
+
+    /** POST /api/demandas/DEV-1/validacao/publicar → comenta o relatório revisado na demanda. */
+    @PostMapping("/{chave}/validacao/publicar")
+    public ValidacaoDemandaService.Publicado publicarValidacao(@PathVariable String chave,
+                                                              @RequestBody ValidacaoDemandaService.Publicar relatorio) {
+        return validacao.publicar(chave, relatorio);
     }
 
     /**

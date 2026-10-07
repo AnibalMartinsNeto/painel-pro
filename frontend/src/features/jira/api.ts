@@ -96,3 +96,42 @@ export function useCoberturaDemanda(projeto: string) {
       apiPost<CoberturaDemanda>(`/api/demandas/${encodeURIComponent(chave)}/cobertura?projeto=${encodeURIComponent(projeto)}`),
   })
 }
+
+export type Veredito = 'APROVADA' | 'REPROVADA'
+
+export interface ItemValidacao {
+  projeto: string
+  spec: string
+  teste: string
+  status: string
+  execucaoId: number
+  quando: string | null
+  oQueFoiValidado: string | null
+}
+
+export interface RascunhoValidacao {
+  chave: string
+  titulo: string
+  url: string
+  veredito: Veredito
+  resumo: string | null
+  itens: ItemValidacao[]
+  pendencias: string[]
+  origem: 'IA' | 'HEURISTICA'
+  modelo: string | null
+}
+
+/** Rascunho do relatório de validação (veredito pelos resultados; texto pela IA, se houver). */
+export function useRascunhoValidacao() {
+  return useMutation({
+    mutationFn: (chave: string) => apiPost<RascunhoValidacao>(`/api/demandas/${encodeURIComponent(chave)}/validacao`),
+  })
+}
+
+/** Publica o relatório revisado como comentário na demanda. */
+export function usePublicarValidacao() {
+  return useMutation({
+    mutationFn: ({ chave, relatorio }: { chave: string; relatorio: { veredito: Veredito; resumo: string; itens: ItemValidacao[]; pendencias: string[] } }) =>
+      apiPost<{ chave: string; url: string }>(`/api/demandas/${encodeURIComponent(chave)}/validacao/publicar`, relatorio),
+  })
+}
