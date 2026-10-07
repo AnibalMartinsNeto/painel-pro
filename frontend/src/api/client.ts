@@ -27,13 +27,18 @@ export class ApiError extends Error {
 export const apiGet = <T>(path: string) => requisitar<T>('GET', path)
 export const apiPost = <T>(path: string, corpo?: unknown) => requisitar<T>('POST', path, corpo)
 export const apiPut = <T>(path: string, corpo?: unknown) => requisitar<T>('PUT', path, corpo)
+/** GET de texto puro (ex.: Markdown da aba Documentação), com o mesmo tratamento de erro. */
+export const apiGetTexto = (path: string) => requisitar<string>('GET', path, undefined, true)
 
-async function requisitar<T>(method: string, path: string, corpo?: unknown): Promise<T> {
+async function requisitar<T>(method: string, path: string, corpo?: unknown, texto = false): Promise<T> {
   let res: Response
   try {
     res = await fetch(path, {
       method,
-      headers: { Accept: 'application/json', ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: {
+        Accept: texto ? 'text/markdown, text/plain' : 'application/json',
+        ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
       body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
     })
   } catch {
@@ -46,5 +51,5 @@ async function requisitar<T>(method: string, path: string, corpo?: unknown): Pro
   }
   // 204 No Content (e 202 sem corpo): não há JSON para ler.
   if (res.status === 204 || res.headers.get('content-length') === '0') return null as T
-  return (await res.json()) as T
+  return (texto ? await res.text() : await res.json()) as T
 }

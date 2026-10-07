@@ -96,6 +96,7 @@ O projeto de testes (Cypress, Playwright ou k6) é escolhido no seletor da barra
 | **Triagem IA** | Fila de testes falhando; a IA (Gemini ou Claude) sugere título, classificação, severidade, passos e análise; o QA revisa, salva e publica no Jira |
 | **Jira** | Busca por chave: numa **demanda** (ex.: DEV-1), lista os specs que a citam e executa; num **bug publicado pelo painel**, mostra o teste que o encontrou e o botão **Retestar**. Lista os bugs publicados e o **histórico do projeto no Jira** (todas as issues, com o status atual) |
 | **Relatórios** | Totais de todo o histórico (execuções, testes únicos, que já falharam, instáveis, tempo total), aprovação por execução, testes que mais falham, exportação **CSV** e **JSON** |
+| **Documentação** | Os `.md` do projeto de testes (README, regras de negócio, README de cada ferramenta) renderizados no painel, sem biblioteca e sem HTML cru (seguro contra XSS) |
 | **Configurações** | Ambiente, chaves de IA e conexão com o Jira (com "Testar conexão") |
 
 ## Frontend
@@ -134,6 +135,7 @@ cd backend
 | `GET /api/execucoes?projeto=cypress` | Últimas 50 execuções do projeto |
 | `GET /api/execucoes/resumo?projeto=cypress` | Números da Visão geral (mês, aprovação, falhas por módulo) |
 | `GET /api/execucoes/{id}` | Execução com todos os resultados de teste |
+| `GET /api/documentos?projeto=` · `GET /api/documentos/conteudo?projeto=&id=` | Documentos .md da pasta do projeto e da raiz do repositório de testes; só os descobertos podem ser lidos |
 | `GET /api/evidencias/{id}` | Arquivo de uma evidência: screenshot (mostrado na tela) ou trace/contexto (download) |
 | `GET /api/execucoes/duracoes?projeto=` | Base da previsão de tempo: média de cada spec e tempo fixo de uma execução (só execuções reais) |
 | `POST /api/execucoes` | Dispara uma execução → 202; 400 se inválida; 409 se já houver uma rodando |

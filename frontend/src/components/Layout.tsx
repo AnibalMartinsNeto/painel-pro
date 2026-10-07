@@ -12,6 +12,7 @@ const NAV = [
   { to: '/triagem', label: 'Triagem IA' },
   { to: '/jira', label: 'Jira' },
   { to: '/relatorios', label: 'Relatórios' },
+  { to: '/documentacao', label: 'Documentação' },
   { to: '/configuracoes', label: 'Configurações' },
 ]
 

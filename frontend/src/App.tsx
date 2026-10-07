@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 import { Layout } from './components/Layout'
 import { ConfiguracoesPage } from './features/configuracoes/ConfiguracoesPage'
+import { DocumentacaoPage } from './features/documentacao/DocumentacaoPage'
 import { ExecucaoDetalhePage } from './features/execucoes/ExecucaoDetalhePage'
 import { ExecucoesPage } from './features/execucoes/ExecucoesPage'
 import { JiraPage } from './features/jira/JiraPage'
@@ -26,6 +27,7 @@ export function App() {
           <Route path="triagem/:resultadoId" element={<TriagemPage />} />
           <Route path="jira" element={<JiraPage />} />
           <Route path="relatorios" element={<RelatoriosPage />} />
+          <Route path="documentacao" element={<DocumentacaoPage />} />
           <Route path="configuracoes" element={<ConfiguracoesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
